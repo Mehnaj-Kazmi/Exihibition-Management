@@ -1,0 +1,25 @@
+@* Full-width status banner for ongoing screen state — reserved for things a
+   visitor needs to still see when they look back at the screen, as opposed
+   to one-off action feedback (which uses a toast instead). *@
+
+<div class="banner banner-@Kind.ToString().ToLowerInvariant()">
+    <span class="material-symbols-outlined">@(Icon ?? DefaultIcon)</span>
+    <span>@if (ChildContent is not null) { @ChildContent } else { @Text }</span>
+</div>
+
+@code {
+    public enum BannerKind { Info, Good, Warning, Error }
+
+    [Parameter] public BannerKind Kind { get; set; } = BannerKind.Info;
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Text { get; set; }
+
+    private string DefaultIcon => Kind switch
+    {
+        BannerKind.Good => "check_circle",
+        BannerKind.Warning => "info",
+        BannerKind.Error => "error",
+        _ => "info",
+    };
+}

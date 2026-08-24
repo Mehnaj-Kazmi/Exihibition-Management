@@ -1,0 +1,46 @@
+@* The five-tab home shell — Search / Programme / Scan / My list / Profile.
+   Ordered by expected usage frequency, Scan deliberately centred for
+   one-handed reach, matching the source app's bottom navigation exactly. *@
+@inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject AppState State
+@implements IDisposable
+
+<div class="screen">
+    @Body
+</div>
+
+<nav class="bottom-nav">
+    <NavTab Href="/search" Icon="search" ActiveIcon="search" Label="Search" Active="@IsActive("/search")" />
+    <NavTab Href="/programme" Icon="event_note" ActiveIcon="event_note" Label="Programme" Active="@IsActive("/programme")" />
+    <NavTab Href="/scan" Icon="qr_code_scanner" ActiveIcon="qr_code_scanner" Label="Scan" Active="@IsActive("/scan")" />
+    <NavTab Href="/mylist" Icon="inbox" ActiveIcon="inbox" Label="My list" Active="@IsActive("/mylist")" Badge="@(State.CataloguesToday > 0 ? State.CataloguesToday : null)" />
+    <NavTab Href="/profile" Icon="person" ActiveIcon="person" Label="Profile" Active="@IsActive("/profile")" />
+</nav>
+
+@code {
+    private string _path = "";
+
+    protected override void OnInitialized()
+    {
+        _path = new Uri(Nav.Uri).AbsolutePath;
+        Nav.LocationChanged += OnLocationChanged;
+        State.Changed += OnStateChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _path = new Uri(e.Location).AbsolutePath;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private bool IsActive(string href) => _path.Equals(href, StringComparison.OrdinalIgnoreCase);
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        State.Changed -= OnStateChanged;
+    }
+}

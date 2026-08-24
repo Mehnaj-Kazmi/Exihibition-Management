@@ -1,0 +1,170 @@
+@page
+@model Exb.Web.Pages.Reports.IndexModel
+@using Exb.Core.Interest
+@using Exb.Data.Entities
+@{
+    ViewData["Title"] = "Daily reports";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Daily reports &amp; e-catalogue packs</h1>
+        <p class="lead">
+            The evening run closes the day, builds each visitor's e-catalogue pack, works out the
+            stands they missed, and queues their email.
+        </p>
+    </div>
+    <div class="actions">
+        <form method="post" asp-page-handler="Run" asp-route-day="@Model.SelectedDay.ToString("yyyy-MM-dd")">
+            <input type="hidden" name="resend" value="false" />
+            <button class="btn primary" type="submit">Run for @Model.SelectedDay.ToString("d MMM")</button>
+        </form>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="notice @(Model.MailWillSend ? "warn" : "info")">
+    @if (Model.MailWillSend)
+    {
+        <strong>Emails will be sent to real visitors</strong>
+        <text>Mail is set to SMTP, so running this will deliver to the addresses on file. Packs go out via the
+        <strong>@Model.DeliveryProvider</strong> provider.</text>
+    }
+    else
+    {
+        <strong>Nothing will be emailed</strong>
+        <text>Mail provider is <strong>@Model.MailProvider</strong>, so messages queue in the
+        <a asp-page="/Settings/Outbox">Outbox</a> for you to read rather than being sent. Reports and packs are
+        still built in full. Switch to SMTP in <a asp-page="/Settings/Delivery">Settings &rsaquo; Delivery</a> when ready.</text>
+    }
+</div>
+
+@if (Model.Days.Count > 1)
+{
+    <div class="hall-tabs">
+        @foreach (var day in Model.Days)
+        {
+            <a class="btn @(day == Model.SelectedDay ? "primary" : "")"
+               asp-page="/Reports/Index" asp-route-day="@day.ToString("yyyy-MM-dd")">@day.ToString("ddd d MMM")</a>
+        }
+    </div>
+}
+
+<div class="grid c4" style="margin-bottom:18px">
+    <div class="tile">
+        <div class="value accent">@Model.ActiveVisitors</div>
+        <div class="label">visitors with activity</div>
+        <div class="sub">@(Model.DayClosed ? "day closed" : "day still open")</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.ReportsBuilt</div>
+        <div class="label">reports built</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.PacksBuilt</div>
+        <div class="label">e-catalogue packs</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.EmailsSent<span class="muted" style="font-size:16px"> / @(Model.EmailsSent + Model.EmailsQueued)</span></div>
+        <div class="label">emails sent</div>
+        <div class="sub"><a asp-page="/Settings/Outbox">Outbox</a></div>
+    </div>
+</div>
+
+<div class="card">
+    <header>
+        <h2>Per visitor</h2>
+        <div class="actions">
+            <form method="post" asp-page-handler="Run" asp-route-day="@Model.SelectedDay.ToString("yyyy-MM-dd")"
+                  onsubmit="return confirm('Rebuild and re-queue emails for every visitor on this day? Anyone already emailed will receive it again.');">
+                <input type="hidden" name="resend" value="true" />
+                <button class="btn small" type="submit">Rebuild and resend all</button>
+            </form>
+        </div>
+    </header>
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">No visitor activity recorded for this day.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>Visitor</th><th class="num">Stands</th><th class="num">Time</th><th class="num">Missed</th>
+                    <th>Pack</th><th>Email</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>
+                            <a asp-page="/Visitors/Details" asp-route-id="@row.VisitorId">@row.Name</a><br />
+                            <span class="small muted">@row.Email</span>
+                        </td>
+                        <td class="num">@row.StandsVisited</td>
+                        <td class="num">@(row.DwellSeconds == 0 ? "—" : InterestFormatting.Duration(row.DwellSeconds))</td>
+                        <td class="num">@row.StandsMissed</td>
+                        <td class="small">
+                            @if (row.PackStatus is null)
+                            {
+                                <span class="muted">—</span>
+                            }
+                            else if (row.PackStatus == JobStatus.Succeeded)
+                            {
+                                <span class="badge good">@row.PackItems exhibitor(s)</span>
+                            }
+                            else
+                            {
+                                <span class="badge bad">@row.PackStatus</span>
+                            }
+                        </td>
+                        <td class="small">
+                            @if (!row.ConsentEmail)
+                            {
+                                <span class="badge">no consent</span>
+                            }
+                            else if (row.EmailStatus is null)
+                            {
+                                <span class="muted">—</span>
+                            }
+                            else if (row.EmailStatus == JobStatus.Succeeded)
+                            {
+                                <span class="badge good">sent</span>
+                            }
+                            else if (row.EmailStatus == JobStatus.Failed)
+                            {
+                                <span class="badge bad" title="@row.EmailError">failed</span>
+                            }
+                            else
+                            {
+                                <span class="badge info">queued</span>
+                            }
+                        </td>
+                        <td class="nowrap">
+                            @if (row.ReportId is not null)
+                            {
+                                <a class="btn small" asp-page="/Reports/View" asp-route-id="@row.ReportId">View report</a>
+                            }
+                            @if (row.PackUrl is not null)
+                            {
+                                <a class="btn small" href="@row.PackUrl" target="_blank" rel="noopener">Pack</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

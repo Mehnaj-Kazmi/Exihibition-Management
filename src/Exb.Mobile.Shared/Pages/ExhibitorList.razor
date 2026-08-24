@@ -1,0 +1,76 @@
+@page "/exhibitors"
+@inject AppState State
+
+<AppBar Title="@(Title ?? "Exhibitors")" Subtitle="@Subtitle" />
+
+<div class="screen-body">
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_error is not null)
+    {
+        <EmptyState Icon="cloud_off" Title="Could not load" Detail="@_error" ActionLabel="Try again" OnAction="Load" />
+    }
+    else if (_page.Items.Count == 0)
+    {
+        <EmptyState Icon="storefront" Title="No exhibitors here yet" />
+    }
+    else
+    {
+        <div style="font-size:13px;color:var(--on-surface-variant);padding:6px 4px">@(_page.Total) exhibitor(s)</div>
+        <ul class="tile-list divided">
+            @foreach (var ex in _page.Items)
+            {
+                <li><ExhibitorTile Exhibitor="ex" /></li>
+            }
+        </ul>
+        @if (_loadingMore)
+        {
+            <div style="text-align:center;padding:16px"><span class="spinner dark"></span></div>
+        }
+        else if (_page.HasMore)
+        {
+            <div style="text-align:center;padding:12px"><button class="btn btn-outlined" @onclick="LoadMore">Load more</button></div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public string? Title { get; set; }
+    [Parameter, SupplyParameterFromQuery] public string? Subtitle { get; set; }
+    [Parameter, SupplyParameterFromQuery] public int? CategoryId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public int? SubCategoryId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public int? HallId { get; set; }
+
+    private Paged<Exhibitor> _page = Paged<Exhibitor>.Empty();
+    private bool _loading, _loadingMore;
+    private string? _error;
+    private int _pageNumber = 1;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true; _error = null; _pageNumber = 1;
+        StateHasChanged();
+        try { _page = await State.Api.Exhibitors(null, CategoryId, SubCategoryId, HallId, null, _pageNumber); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadMore()
+    {
+        if (_loadingMore || !_page.HasMore) return;
+        _loadingMore = true;
+        try
+        {
+            _pageNumber++;
+            var next = await State.Api.Exhibitors(null, CategoryId, SubCategoryId, HallId, null, _pageNumber);
+            _page.Items.AddRange(next.Items);
+            _page = new Paged<Exhibitor> { Items = _page.Items, Total = next.Total, PageNumber = next.PageNumber, PageSize = next.PageSize, HasMore = next.HasMore };
+        }
+        catch (ApiException) { _pageNumber--; }
+        finally { _loadingMore = false; }
+    }
+}

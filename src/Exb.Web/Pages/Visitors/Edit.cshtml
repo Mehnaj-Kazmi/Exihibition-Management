@@ -1,0 +1,82 @@
+@page "/Visitors/Edit/{id:int?}"
+@model Exb.Web.Pages.Visitors.EditModel
+@inject Exb.Data.Services.SettingsStore Settings
+@{
+    ViewData["Title"] = Model.Heading;
+    var baseUrl = Settings.Current.Exhibition.PublicBaseUrl.TrimEnd('/');
+}
+
+<div class="page-head">
+    <div>
+        <h1>@Model.Heading</h1>
+        <p class="lead">
+            This form is whatever your organisation arranged in
+            <a asp-page="/Settings/Forms">Settings &rsaquo; Forms</a>. The badge EPC is what ties
+            this person to everything the floor measures.
+        </p>
+    </div>
+    <div class="actions">
+        @if (Model.Id is not null)
+        {
+            <a class="btn" asp-page="/Visitors/Details" asp-route-id="@Model.Id">Journey</a>
+        }
+        <a class="btn" asp-page="/Visitors/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="grid" style="grid-template-columns: minmax(0, 1fr) 320px">
+    <div class="card">
+        <div class="body">
+            <form method="post" autocomplete="off">
+                <partial name="_DynamicForm" model="Model.Render" />
+                <div style="display:flex;gap:8px">
+                    <button class="btn primary" type="submit">@(Model.Id is null ? "Register visitor" : "Save")</button>
+                    <a class="btn" asp-page="/Visitors/Index">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        @if (Model.Id is not null && Model.AccessToken is not null)
+        {
+            <div class="card">
+                <header><h2>Badge</h2></header>
+                <div class="body">
+                    <h3>Registration code</h3>
+                    <p class="mono" style="font-size:17px;font-weight:600">@Model.RegistrationCode</p>
+                    <p class="small muted">Printed on the badge. The help desk uses it to find someone who has lost their badge.</p>
+
+                    <h3 style="margin-top:16px">Personal page</h3>
+                    <img src="/qr/@(Model.AccessToken).svg" alt="Personal page QR"
+                         style="width:130px;height:130px;border:1px solid var(--line);border-radius:6px" />
+                    <p class="small muted">
+                        Scanning this opens the visitor's own page, where they can see what they have
+                        scanned today. Print it on the badge so their phone is identified when they
+                        scan a stand's QR code.
+                    </p>
+                    <p class="small mono muted" style="word-break:break-all">@baseUrl/me/@Model.AccessToken</p>
+                </div>
+            </div>
+        }
+
+        <div class="card">
+            <header><h2>What consent controls</h2></header>
+            <div class="body small">
+                <p><strong>Visit tracking.</strong> Without it the badge is still located for headcount
+                and safety, but no stand visit is recorded and the visitor receives no interest report.</p>
+                <p><strong>Email.</strong> Without it no e-catalogue pack and no daily report are sent,
+                even for stands the visitor scanned.</p>
+            </div>
+        </div>
+    </div>
+</div>

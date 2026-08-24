@@ -1,0 +1,149 @@
+@page "/scan"
+@layout Layout.ShellLayout
+@inject AppState State
+@inject IPlatformServices Platform
+@inject NavigationManager Nav
+
+<div class="app-bar elevated" style="background:#14161A;color:#fff">
+    <span class="app-bar-title"><div class="t1" style="color:#fff">Scan for e-catalogue</div></span>
+    <button class="icon-btn scan-appbar-icon" title="Torch" @onclick="ToggleTorch">
+        <span class="material-symbols-outlined @(_torchOn ? "filled" : "")">flashlight_on</span>
+    </button>
+    <button class="icon-btn scan-appbar-icon" title="Switch camera" @onclick="SwitchCamera">
+        <span class="material-symbols-outlined">cameraswitch</span>
+    </button>
+</div>
+
+<div class="scan-camera">
+    @if (Platform.SupportsLiveCamera)
+    {
+        <div class="placeholder">
+            <span class="material-symbols-outlined">qr_code_scanner</span>
+            <button class="btn btn-filled" style="width:auto" @onclick="OpenCamera">
+                <span class="material-symbols-outlined">photo_camera</span> Open camera
+            </button>
+            <span>Scans keep going stand after stand — close the camera when you are done.</span>
+        </div>
+    }
+    else
+    {
+        <div class="placeholder">
+            <span class="material-symbols-outlined">photo_camera</span>
+            <span>Live camera scanning runs in the phone app.<br />Type a stand code below to try scanning here.</span>
+        </div>
+    }
+    <div class="scan-reticle"></div>
+    <div class="scan-caption">Point at the QR code on the stand</div>
+    @if (_busy)
+    {
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center">
+            <span class="spinner"></span>
+        </div>
+    }
+</div>
+
+@* Manual entry stays available on every host — it is the fallback when the
+   visitor has denied camera permission or the camera is busy elsewhere. *@
+<div class="screen-body" style="padding-bottom:0">
+    <div class="field" style="display:flex;gap:8px;margin-bottom:0">
+        <input placeholder="Stand QR token (e.g. from Print QR sheets)" value="@_manualToken" @oninput="OnManualTokenInput" style="flex:1" />
+        <button class="btn btn-tonal" style="min-height:46px" @onclick="SubmitManualToken">Scan</button>
+    </div>
+</div>
+
+<div class="screen-body">
+    @if (_error is not null)
+    {
+        <MessageBanner Kind="MessageBanner.BannerKind.Error" Text="@_error" />
+    }
+    else if (_lastResult is null)
+    {
+        <MessageBanner Kind="MessageBanner.BannerKind.Info" Icon="inbox">
+            Everything you scan today is collected into one pack and emailed to you this evening. Nothing downloads now.
+        </MessageBanner>
+    }
+    else
+    {
+        <MessageBanner Kind="@(_lastResult.IsAlreadyRequested ? MessageBanner.BannerKind.Warning : MessageBanner.BannerKind.Good)" Text="@_lastResult.Message" />
+        <div class="scan-result-exhibitor">
+            <div>
+                <div style="font-weight:600">@_lastResult.Stand.ExhibitorName</div>
+                <div style="font-size:12.5px;color:var(--on-surface-variant)">@_lastResult.Stand.HallName · Stand @_lastResult.Stand.StandNumber</div>
+                <div style="font-size:12.5px;color:var(--primary)">@(_lastResult.TodayCount) on your list today</div>
+            </div>
+            <button class="btn btn-text" @onclick="OpenLastResult">Open</button>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _torchOn;
+    private bool _busy;
+    private string? _error;
+    private ScanResult? _lastResult;
+    private string _manualToken = "";
+    private string? _inFlightToken;
+    private System.Threading.Timer? _cooldown;
+
+    private void ToggleTorch() => _torchOn = !_torchOn;
+    private void SwitchCamera() { /* native camera facing toggle — wired on the MAUI head's real scanner */ }
+    private void OnManualTokenInput(ChangeEventArgs e) => _manualToken = e.Value?.ToString() ?? "";
+    private Task SubmitManualToken() => Detect(_manualToken);
+
+    /// <summary>
+    /// Hands each native camera detection to the same Detect() path the manual
+    /// entry uses, and mirrors the outcome back to the scanner's own banner —
+    /// the visitor sees the confirmation without leaving the camera, and this
+    /// page's result panel is already up to date when they close it.
+    /// </summary>
+    private async Task OpenCamera()
+    {
+        bool opened = await Platform.OpenScannerAsync(async raw =>
+        {
+            await InvokeAsync(() => Detect(raw));
+            if (_error is not null) return new ScannerFeedback(false, _error);
+            if (_lastResult is not null)
+                return new ScannerFeedback(!_lastResult.IsAlreadyRequested, _lastResult.Message,
+                    $"{_lastResult.TodayCount} on your list today");
+            return new ScannerFeedback(false, "That code was not recognised.");
+        });
+
+        if (!opened)
+        {
+            _error = "Camera access is off. Turn it on for this app in your phone's Settings, then come back — or type the stand code below.";
+        }
+        StateHasChanged();
+    }
+    private void OpenLastResult()
+    {
+        if (_lastResult is not null) Nav.NavigateTo($"/exhibitor/{_lastResult.Stand.ExhibitorId}");
+    }
+
+    private async Task Detect(string rawValue)
+    {
+        if (_busy || string.IsNullOrWhiteSpace(rawValue)) return;
+        if (rawValue == _inFlightToken) return; // same-code cooldown, matching the source app's 3s debounce
+
+        _busy = true;
+        _inFlightToken = rawValue;
+        StateHasChanged();
+        try
+        {
+            var result = await State.Api.Scan(rawValue);
+            State.SetCatalogueCount(result.TodayCount);
+            _lastResult = result;
+            _error = null;
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+            _lastResult = null;
+        }
+        finally
+        {
+            _busy = false;
+            _cooldown?.Dispose();
+            _cooldown = new System.Threading.Timer(_ => _inFlightToken = null, null, 3000, System.Threading.Timeout.Infinite);
+        }
+    }
+}

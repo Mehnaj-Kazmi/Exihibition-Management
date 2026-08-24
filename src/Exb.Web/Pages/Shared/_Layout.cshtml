@@ -1,0 +1,63 @@
+@using Exb.Data.Services
+@inject SettingsStore Settings
+@{
+    var exhibition = Settings.Current.Exhibition;
+    string here = (ViewContext.RouteData.Values["page"]?.ToString() ?? "").ToLowerInvariant();
+    string Active(string prefix) => here.StartsWith(prefix.ToLowerInvariant()) ? "active" : "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · @exhibition.Name</title>
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%23125ea8'/><circle cx='8' cy='8' r='2.6' fill='white'/></svg>" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <a asp-page="/Index" style="color:#fff;text-decoration:none">@exhibition.Name</a>
+        <span>@(string.IsNullOrWhiteSpace(exhibition.Edition) ? "Visitor interest tracking" : exhibition.Edition)</span>
+    </div>
+    <div class="status">
+        <span><span class="dot" id="live-dot"></span> <span id="live-state">connecting</span></span>
+        <span>tracked <b id="live-tracked">—</b></span>
+        <span>reads/s <b id="live-rate">—</b></span>
+        <span>readers <b id="live-readers">—</b></span>
+    </div>
+</header>
+
+<div class="shell">
+    <nav class="sidenav">
+        <h3>Operations</h3>
+        <a class="@Active("/index")" asp-page="/Index">Dashboard</a>
+        <a class="@Active("/live")" asp-page="/Live">Live floor</a>
+
+        <h3>Exhibition</h3>
+        <a class="@Active("/exhibitors")" asp-page="/Exhibitors/Index">Exhibitors &amp; stands</a>
+        <a class="@Active("/settings/programme")" asp-page="/Settings/Programme">Meetings &amp; lectures</a>
+        <a class="@Active("/visitors")" asp-page="/Visitors/Index">Visitors</a>
+        <a class="@Active("/reports")" asp-page="/Reports/Index">Daily reports</a>
+
+        <h3>Settings</h3>
+        <a class="@Active("/settings/halls")" asp-page="/Settings/Halls">Halls</a>
+        <a class="@Active("/settings/categories")" asp-page="/Settings/Categories">Categories</a>
+        <a class="@Active("/settings/forms")" asp-page="/Settings/Forms">Forms</a>
+        <a class="@Active("/settings/tracking")" asp-page="/Settings/Tracking">Tracking &amp; dwell</a>
+        <a class="@Active("/settings/delivery")" asp-page="/Settings/Delivery">Delivery &amp; email</a>
+        <a class="@Active("/settings/readers")" asp-page="/Settings/Readers">Readers</a>
+        <a class="@Active("/settings/outbox")" asp-page="/Settings/Outbox">Outbox</a>
+    </nav>
+
+    <main>
+        @RenderBody()
+    </main>
+</div>
+
+<script src="~/js/signalr.min.js"></script>
+<script src="~/js/live.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

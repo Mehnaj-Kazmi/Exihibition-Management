@@ -1,0 +1,156 @@
+@using Exb.Core.Forms
+@using Exb.Web.Models
+@model FormRenderModel
+@*
+    Renders whatever layout the admin arranged in Settings > Forms.
+
+    Field names are the schema keys, so the posted form maps straight back onto
+    the same schema for validation. Nothing here knows what a visitor or an
+    exhibitor is, which is what lets one partial serve both.
+*@
+@* "section" cannot be used as a variable name here: Razor reserves the @@section directive. *@
+@foreach (var block in Model.Form.Sections.Where(s => s.Enabled))
+{
+    var fields = Model.VisibleFields(block).ToList();
+    if (fields.Count == 0) { continue; }
+
+    <fieldset class="section">
+        <legend>@block.Title</legend>
+        @if (!string.IsNullOrWhiteSpace(block.Description))
+        {
+            <p class="section-note">@block.Description</p>
+        }
+
+        <div class="form-grid @(block.Columns <= 1 ? "c1" : "")">
+            @foreach (var field in fields)
+            {
+                string span = field.Width >= 2 || block.Columns <= 1 ? "span2" : "";
+                string? error = Model.ErrorFor(field.Key);
+                string invalid = error is null ? "" : "invalid";
+
+                if (field.Type == FormFieldType.Heading)
+                {
+                    <div class="span2"><h3 style="margin:10px 0 2px">@field.Label</h3></div>
+                    continue;
+                }
+                if (field.Type == FormFieldType.Divider)
+                {
+                    <div class="span2"><hr style="border:0;border-top:1px solid var(--line);margin:8px 0 14px" /></div>
+                    continue;
+                }
+
+                <div class="field @span @(field.Required ? "required" : "")">
+                    @if (field.Type != FormFieldType.Checkbox)
+                    {
+                        <label for="f_@field.Key">@field.Label</label>
+                    }
+
+                    @switch (field.Type)
+                    {
+                        case FormFieldType.TextArea:
+                            <textarea id="f_@field.Key" name="@field.Key" class="@invalid"
+                                      placeholder="@field.Placeholder"
+                                      maxlength="@(field.MaxLength ?? 4000)">@Model.SingleValue(field.Key)</textarea>
+                            break;
+
+                        case FormFieldType.Select:
+                        case FormFieldType.Country:
+                        {
+                            var options = field.Type == FormFieldType.Country
+                                ? FormOptions.Countries
+                                : Model.OptionsFor(field);
+                            string current = Model.SingleValue(field.Key);
+                            <select id="f_@field.Key" name="@field.Key" class="@invalid">
+                                <option value="">— select —</option>
+                                @foreach (var option in options)
+                                {
+                                    <option value="@option.Value" selected="@(option.Value == current)">@option.Label</option>
+                                }
+                            </select>
+                            break;
+                        }
+
+                        case FormFieldType.MultiSelect:
+                        {
+                            var chosen = Model.ValueFor(field.Key);
+                            <select id="f_@field.Key" name="@field.Key" class="@invalid" multiple size="6">
+                                @foreach (var option in Model.OptionsFor(field))
+                                {
+                                    <option value="@option.Value" selected="@chosen.Contains(option.Value)">@option.Label</option>
+                                }
+                            </select>
+                            break;
+                        }
+
+                        case FormFieldType.Radio:
+                        {
+                            string current = Model.SingleValue(field.Key);
+                            <div style="display:flex;flex-direction:column;gap:6px">
+                                @foreach (var option in Model.OptionsFor(field))
+                                {
+                                    <label class="check">
+                                        <input type="radio" name="@field.Key" value="@option.Value" checked="@(option.Value == current)" />
+                                        <span>@option.Label</span>
+                                    </label>
+                                }
+                            </div>
+                            break;
+                        }
+
+                        case FormFieldType.Checkbox:
+                            <label class="check">
+                                @* The hidden field means an unchecked box posts a definite
+                                   false, rather than nothing at all, so clearing a consent
+                                   box actually clears it. *@
+                                <input type="hidden" name="@field.Key" value="" />
+                                <input type="checkbox" name="@field.Key" value="true" checked="@Model.IsChecked(field.Key)" />
+                                <span>@field.Label</span>
+                            </label>
+                            break;
+
+                        case FormFieldType.Number:
+                            <input type="number" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" placeholder="@field.Placeholder"
+                                   min="@(field.Min?.ToString() ?? "")" max="@(field.Max?.ToString() ?? "")" step="any" />
+                            break;
+
+                        case FormFieldType.Date:
+                            <input type="date" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" />
+                            break;
+
+                        case FormFieldType.Email:
+                            <input type="email" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" placeholder="@field.Placeholder" />
+                            break;
+
+                        case FormFieldType.Phone:
+                            <input type="tel" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" placeholder="@field.Placeholder" />
+                            break;
+
+                        case FormFieldType.Url:
+                            <input type="url" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" placeholder="@field.Placeholder" />
+                            break;
+
+                        default:
+                            <input type="text" id="f_@field.Key" name="@field.Key" class="@invalid"
+                                   value="@Model.SingleValue(field.Key)" placeholder="@field.Placeholder"
+                                   maxlength="@(field.MaxLength ?? 400)" />
+                            break;
+                    }
+
+                    @if (error is not null)
+                    {
+                        <div class="err">@error</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(field.HelpText))
+                    {
+                        <div class="help">@field.HelpText</div>
+                    }
+                </div>
+            }
+        </div>
+    </fieldset>
+}

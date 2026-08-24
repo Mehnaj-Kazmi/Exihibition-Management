@@ -1,0 +1,235 @@
+@page
+@model Exb.Web.Pages.Settings.DeliveryModel
+@{
+    ViewData["Title"] = "Delivery & email";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Delivery &amp; email</h1>
+        <p class="lead">The event's identity, how e-catalogue packs reach visitors, and how mail is sent.</p>
+    </div>
+    <div class="actions"><button class="btn primary" type="submit" form="delivery-form">Save</button></div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problems.Count > 0)
+{
+    <div class="notice bad">
+        <strong>Not saved</strong>
+        <ul>
+            @foreach (var problem in Model.Problems)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+@if (Model.BaseUrlLooksLocal)
+{
+    <div class="notice warn">
+        <strong>QR codes will not work on a phone</strong>
+        The public base URL still points at this machine. A visitor scanning a stand's code would get
+        nothing. Set it to the address their phones can reach before printing signage.
+    </div>
+}
+
+<form method="post" id="delivery-form">
+    <div class="grid c2">
+        <div class="card">
+            <header><h2>The exhibition</h2></header>
+            <div class="body">
+                <div class="form-grid">
+                    <div class="field span2 required">
+                        <label>Name</label>
+                        <input type="text" asp-for="Exhibition.Name" maxlength="160" />
+                    </div>
+                    <div class="field">
+                        <label>Edition</label>
+                        <input type="text" asp-for="Exhibition.Edition" maxlength="80" placeholder="2026" />
+                    </div>
+                    <div class="field">
+                        <label>Venue</label>
+                        <input type="text" asp-for="Exhibition.Venue" maxlength="160" />
+                    </div>
+                    <div class="field">
+                        <label>Organiser</label>
+                        <input type="text" asp-for="Exhibition.OrganiserName" maxlength="160" />
+                    </div>
+                    <div class="field">
+                        <label>Organiser email</label>
+                        <input type="email" asp-for="Exhibition.OrganiserEmail" maxlength="320" />
+                    </div>
+                    <div class="field span2 required">
+                        <label>Public base URL</label>
+                        <input type="url" asp-for="Exhibition.PublicBaseUrl" />
+                        <div class="help">Printed QR codes resolve to this. It must be reachable from a visitor's phone.</div>
+                    </div>
+                    <div class="field">
+                        <label>Time zone</label>
+                        <input type="text" asp-for="Exhibition.TimeZoneId" />
+                        <div class="help">Decides which day a 21:00 visit belongs to.</div>
+                    </div>
+                    <div class="field">
+                        <label>End-of-day run at</label>
+                        <input type="time" asp-for="Exhibition.EndOfDayAt" />
+                    </div>
+                    <div class="field span2">
+                        <label class="check">
+                            <input type="hidden" asp-for="Exhibition.AutoRunEndOfDay" value="false" />
+                            <input type="checkbox" asp-for="Exhibition.AutoRunEndOfDay" value="true" />
+                            <span>Run the evening pipeline automatically at that time</span>
+                        </label>
+                        <div class="help">With this off, the run happens only when someone presses the button on the Reports page.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <header><h2>E-catalogue delivery</h2></header>
+            <div class="body">
+                <div class="field">
+                    <label>Provider</label>
+                    <select asp-for="Delivery.Provider">
+                        <option value="local">This system — a private download link (default)</option>
+                        <option value="wetransfer">WeTransfer</option>
+                        <option value="generic">Any upload endpoint that returns a URL</option>
+                    </select>
+                    <div class="help">
+                        The default needs no third-party account and no data leaves the venue.
+                        If a chosen provider is not fully configured, packs fall back to it rather than failing.
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="field">
+                        <label>Link expires after (days)</label>
+                        <input type="number" asp-for="Delivery.LinkExpiryDays" min="0" max="365" />
+                        <div class="help">Zero means never.</div>
+                    </div>
+                    <div class="field">
+                        <label>Maximum pack size (MB)</label>
+                        <input type="number" asp-for="Delivery.MaxPackMegabytes" min="1" max="4000" />
+                    </div>
+                    <div class="field span2">
+                        <label>WeTransfer API key</label>
+                        <input type="password" asp-for="Delivery.WeTransfer.ApiKey" autocomplete="off" />
+                    </div>
+                    <div class="field span2">
+                        <label>Generic upload URL</label>
+                        <input type="url" asp-for="Delivery.Generic.UploadUrl" />
+                    </div>
+                    <div class="field">
+                        <label>File field name</label>
+                        <input type="text" asp-for="Delivery.Generic.FileFieldName" />
+                    </div>
+                    <div class="field">
+                        <label>URL path in the response</label>
+                        <input type="text" asp-for="Delivery.Generic.UrlJsonPath" placeholder="data.url" />
+                    </div>
+                    <div class="field span2">
+                        <label>Authorization header</label>
+                        <input type="password" asp-for="Delivery.Generic.AuthorizationHeader" autocomplete="off" placeholder="Bearer ..." />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <header><h2>Email</h2></header>
+        <div class="body">
+            <div class="grid c2">
+                <div>
+                    <div class="field">
+                        <label>Provider</label>
+                        <select asp-for="Mail.Provider">
+                            <option value="outbox">Hold in the Outbox — send nothing (default)</option>
+                            <option value="smtp">SMTP — deliver to visitors</option>
+                        </select>
+                        <div class="help">
+                            Holding is what lets the whole evening pipeline be rehearsed against real
+                            registration data without emailing anyone by accident.
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>From address</label>
+                            <input type="email" asp-for="Mail.FromAddress" />
+                        </div>
+                        <div class="field">
+                            <label>From name</label>
+                            <input type="text" asp-for="Mail.FromName" />
+                        </div>
+                        <div class="field span2">
+                            <label>Reply-to</label>
+                            <input type="email" asp-for="Mail.ReplyTo" />
+                        </div>
+                        <div class="field span2">
+                            <label>Redirect every message to</label>
+                            <input type="email" asp-for="Mail.RedirectAllTo" placeholder="rehearsal@yourcompany.com" />
+                            <div class="help">The rehearsal safety catch: when set, nothing reaches a visitor and each message is prefixed with its intended recipient.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>SMTP host</label>
+                            <input type="text" asp-for="Mail.Host" />
+                        </div>
+                        <div class="field">
+                            <label>Port</label>
+                            <input type="number" asp-for="Mail.Port" min="1" max="65535" />
+                        </div>
+                        <div class="field">
+                            <label>Username</label>
+                            <input type="text" asp-for="Mail.Username" autocomplete="off" />
+                        </div>
+                        <div class="field">
+                            <label>Password</label>
+                            <input type="password" asp-for="Mail.Password" autocomplete="new-password" />
+                        </div>
+                        <div class="field">
+                            <label class="check">
+                                <input type="hidden" asp-for="Mail.UseStartTls" value="false" />
+                                <input type="checkbox" asp-for="Mail.UseStartTls" value="true" />
+                                <span>STARTTLS</span>
+                            </label>
+                        </div>
+                        <div class="field">
+                            <label class="check">
+                                <input type="hidden" asp-for="Mail.UseSsl" value="false" />
+                                <input type="checkbox" asp-for="Mail.UseSsl" value="true" />
+                                <span>Implicit SSL</span>
+                            </label>
+                        </div>
+                        <div class="field span2">
+                            <label>Maximum sends per minute</label>
+                            <input type="number" asp-for="Mail.MaxSendsPerMinute" min="1" max="6000" />
+                            <div class="help">Most relays throttle bursts; a few hundred reports go out at once.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn primary" type="submit">Save</button>
+</form>
+
+<div class="card" style="margin-top:18px">
+    <header><h2>Send a test</h2></header>
+    <div class="body">
+        <form method="post" asp-page-handler="Test" class="toolbar">
+            <input type="email" asp-for="TestRecipient" placeholder="you@yourcompany.com" style="min-width:280px" />
+            <button class="btn" type="submit">Queue a test message</button>
+            <span class="small muted">Proves the whole path before three hundred reports depend on it.</span>
+        </form>
+    </div>
+</div>

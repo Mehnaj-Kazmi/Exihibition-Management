@@ -1,0 +1,239 @@
+@page "/login"
+@inject AppState State
+@inject IJSRuntime Js
+
+<div class="login-wrap">
+    <span class="material-symbols-outlined login-icon">qr_code_scanner</span>
+    <div class="login-title">Exhibition Companion</div>
+    <div class="login-subtitle">@Subtitle</div>
+
+    @if (State.SignedOutBecause is not null && _step == Step.Email)
+    {
+        <MessageBanner Kind="MessageBanner.BannerKind.Warning" Text="@State.SignedOutBecause" />
+    }
+
+    <div class="login-form">
+        @if (_step == Step.Email)
+        {
+            <div class="field">
+                <label for="email">Registered email address</label>
+                <input id="email" type="email" autocomplete="email" @bind="_email" @bind:event="oninput"
+                       @onkeydown="OnEmailKeyDown" placeholder="you@example.com" />
+                @if (_emailError is not null)
+                {
+                    <div class="error">@_emailError</div>
+                }
+            </div>
+
+            @if (_error is not null)
+            {
+                <MessageBanner Kind="MessageBanner.BannerKind.Error" Text="@_error" />
+            }
+
+            <button class="btn btn-filled" disabled="@_busy" @onclick="SubmitEmail">
+                @if (_busy) { <span class="spinner"></span> } else { <span>Send me a code</span> }
+            </button>
+            <div class="login-help">Not registered? Ask at the registration desk — the app uses the same address as your badge.</div>
+        }
+        else
+        {
+            @if (_notice is not null)
+            {
+                <MessageBanner Kind="MessageBanner.BannerKind.Info" Text="@_notice" />
+            }
+            @if (_developmentCode is not null)
+            {
+                <MessageBanner Kind="MessageBanner.BannerKind.Warning" Text="@($"This system is not sending email yet, so here is your code: {_developmentCode}")" />
+            }
+
+            <div class="field">
+                <label for="code">Six-digit code</label>
+                <input id="code" class="code-input" inputmode="numeric" maxlength="6" placeholder="000000"
+                       value="@_code" @oninput="OnCodeInput" />
+                @if (_codeError is not null)
+                {
+                    <div class="error">@_codeError</div>
+                }
+            </div>
+
+            @if (_error is not null)
+            {
+                <MessageBanner Kind="MessageBanner.BannerKind.Error" Text="@_error" />
+            }
+
+            <button class="btn btn-filled" disabled="@_busy" @onclick="SubmitCode">
+                @if (_busy) { <span class="spinner"></span> } else { <span>Sign in</span> }
+            </button>
+
+            <div class="login-row">
+                <button class="btn btn-text" @onclick="ChangeEmail">Change email</button>
+                @if (_resendSeconds > 0)
+                {
+                    <span style="color:var(--on-surface-variant);font-size:13px">Send again in @(_resendSeconds)s</span>
+                }
+                else
+                {
+                    <button class="btn btn-text" @onclick="SubmitEmail" disabled="@_busy">Send again</button>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="server-row">
+        <span>@State.BaseUrl</span>
+        <button class="btn btn-text" style="padding:0" @onclick="OpenServerDialog">Change</button>
+    </div>
+</div>
+
+@if (_serverDialogOpen)
+{
+    <div class="sheet-backdrop" @onclick="CloseServerDialog"></div>
+    <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Exhibition system address</div>
+        <div class="screen-body" style="padding-top:0">
+            <p style="font-size:13.5px;color:var(--on-surface-variant);margin-top:0">
+                The web address of the exhibition system. The organiser can tell you this — it is the same address the stand QR codes point to.
+            </p>
+            <div class="field">
+                <input type="url" @bind="_serverUrl" @bind:event="oninput" placeholder="https://exhibition.example.com" />
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button class="btn btn-text" @onclick="CloseServerDialog">Cancel</button>
+                <button class="btn btn-tonal" @onclick="SaveServerUrl">Save</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private enum Step { Email, Code }
+    private Step _step = Step.Email;
+
+    private string _email = "";
+    private string _code = "";
+    private string? _emailError, _codeError, _error, _notice, _developmentCode;
+    private bool _busy;
+    private int _resendSeconds;
+    private System.Threading.Timer? _resendTimer;
+
+    private bool _serverDialogOpen;
+    private string _serverUrl = "";
+
+    protected override void OnInitialized() => _email = State.LastEmail ?? "";
+
+    private static bool EmailLooksValid(string value)
+    {
+        string v = value.Trim();
+        return v.Contains('@') && v.Contains('.') && v.Length > 5;
+    }
+
+    private Task OnEmailKeyDown(KeyboardEventArgs e) => e.Key == "Enter" ? SubmitEmail() : Task.CompletedTask;
+
+    private async Task OnCodeInput(ChangeEventArgs e)
+    {
+        string digits = new string((e.Value?.ToString() ?? "").Where(char.IsDigit).ToArray());
+        if (digits.Length > 6) digits = digits[..6];
+        _code = digits;
+        if (_code.Length == 6 && !_busy) await SubmitCode();
+    }
+
+    private async Task SubmitEmail()
+    {
+        _error = null;
+        if (!EmailLooksValid(_email))
+        {
+            _emailError = "Enter the email address you registered with.";
+            return;
+        }
+        _emailError = null;
+        _busy = true;
+        try
+        {
+            var result = await State.RequestCodeAsync(_email);
+            _notice = result.Message;
+            _developmentCode = result.DevelopmentCode;
+            _step = Step.Code;
+            _code = "";
+            _codeError = null;
+            StartResendCountdown();
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SubmitCode()
+    {
+        _error = null;
+        if (_code.Trim().Length < 6)
+        {
+            _codeError = "Enter the six-digit code from your email.";
+            return;
+        }
+        _codeError = null;
+        _busy = true;
+        try
+        {
+            await State.VerifyCodeAsync(_email, _code.Trim());
+            // AuthGate reacts to State.Changed and takes it from here.
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.Message;
+            _code = "";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ChangeEmail()
+    {
+        _step = Step.Email;
+        _code = "";
+        _notice = null;
+        _developmentCode = null;
+        _error = null;
+        _resendTimer?.Dispose();
+        _resendSeconds = 0;
+    }
+
+    private void StartResendCountdown()
+    {
+        _resendTimer?.Dispose();
+        _resendSeconds = 45;
+        _resendTimer = new System.Threading.Timer(_ =>
+        {
+            _resendSeconds--;
+            if (_resendSeconds <= 0) _resendTimer?.Dispose();
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private string Subtitle => _step == Step.Email
+        ? "Sign in with the email address you registered with."
+        : $"Enter the six-digit code we sent to\n{_email}";
+
+    private void OpenServerDialog()
+    {
+        _serverUrl = State.BaseUrl;
+        _serverDialogOpen = true;
+    }
+
+    private void CloseServerDialog() => _serverDialogOpen = false;
+
+    private async Task SaveServerUrl()
+    {
+        if (string.IsNullOrWhiteSpace(_serverUrl)) return;
+        await State.SetBaseUrlAsync(_serverUrl.Trim());
+        _serverDialogOpen = false;
+        ChangeEmail();
+    }
+}

@@ -1,0 +1,115 @@
+@page
+@model Exb.Web.Pages.Settings.OutboxModel
+@using Exb.Data.Entities
+@{
+    ViewData["Title"] = "Outbox";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Outbox</h1>
+        <p class="lead">Every message the system has decided to send. Nothing is delivered directly — it is written here first, then sent from here.</p>
+    </div>
+    <div class="actions">
+        <form method="post" asp-page-handler="SendNow" style="display:inline">
+            <button class="btn primary" type="submit">Send now</button>
+        </form>
+        @if (Model.Failed > 0)
+        {
+            <form method="post" asp-page-handler="Retry" style="display:inline">
+                <button class="btn" type="submit">Retry failed</button>
+            </form>
+        }
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+
+@if (!Model.CanSend)
+{
+    <div class="notice info">
+        <strong>Nothing is being delivered</strong>
+        The mail provider is <strong>@Model.Provider</strong>, so messages queue here for review rather
+        than being sent. This is the safe default: the whole evening pipeline can be rehearsed against
+        real registration data without emailing anyone. Turn on SMTP in
+        <a asp-page="/Settings/Delivery">Settings &rsaquo; Delivery</a> when you are ready.
+    </div>
+}
+
+<div class="toolbar">
+    <a class="btn @(Model.Status is null ? "primary" : "")" asp-page="/Settings/Outbox">All</a>
+    <a class="btn @(Model.Status == "pending" ? "primary" : "")" asp-page="/Settings/Outbox" asp-route-status="pending">Queued (@Model.Pending)</a>
+    <a class="btn @(Model.Status == "sent" ? "primary" : "")" asp-page="/Settings/Outbox" asp-route-status="sent">Sent (@Model.Sent)</a>
+    <a class="btn @(Model.Status == "failed" ? "primary" : "")" asp-page="/Settings/Outbox" asp-route-status="failed">Failed (@Model.Failed)</a>
+</div>
+
+<div class="grid" style="grid-template-columns: minmax(0, 1fr) @(Model.PreviewMail is null ? "0" : "520px")">
+    <div class="card">
+        <div class="body tight">
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="empty">Nothing here.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead>
+                    <tr><th>To</th><th>Subject</th><th>Kind</th><th>Status</th><th>Created</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var mail in Model.Rows)
+                    {
+                        <tr>
+                            <td class="small">@mail.ToName<br /><span class="muted">@mail.ToAddress</span></td>
+                            <td class="small">@mail.Subject</td>
+                            <td class="small">@mail.Kind</td>
+                            <td class="small">
+                                @{
+                                    string cls = mail.Status switch
+                                    {
+                                        JobStatus.Succeeded => "good",
+                                        JobStatus.Failed => "bad",
+                                        JobStatus.Pending => "info",
+                                        _ => "",
+                                    };
+                                }
+                                <span class="badge @cls" title="@mail.Error">@mail.Status.ToString().ToLowerInvariant()</span>
+                                @if (mail.Attempts > 1)
+                                {
+                                    <span class="small muted">×@mail.Attempts</span>
+                                }
+                            </td>
+                            <td class="small mono">@mail.CreatedUtc.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                            <td>
+                                <a class="btn small" asp-page="/Settings/Outbox" asp-route-status="@Model.Status" asp-route-preview="@mail.Id">Preview</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    @if (Model.PreviewMail is not null)
+    {
+        <div class="card">
+            <header>
+                <h2>Preview</h2>
+                <div class="actions"><a class="btn small" asp-page="/Settings/Outbox" asp-route-status="@Model.Status">Close</a></div>
+            </header>
+            <div class="body" style="padding:0">
+                <div style="padding:12px 14px;border-bottom:1px solid var(--line)" class="small">
+                    <strong>To:</strong> @Model.PreviewMail.ToAddress<br />
+                    <strong>Subject:</strong> @Model.PreviewMail.Subject
+                </div>
+                <iframe src="@Url.Page("/Settings/Outbox", "Body", new { id = Model.PreviewMail.Id })"
+                        sandbox="" title="Message preview"
+                        style="width:100%;height:800px;border:0;background:#eef2f6"></iframe>
+            </div>
+        </div>
+    }
+</div>

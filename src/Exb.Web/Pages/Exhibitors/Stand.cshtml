@@ -1,0 +1,225 @@
+@page "/Exhibitors/Stand/{id:int}"
+@model Exb.Web.Pages.Exhibitors.StandModel
+@{
+    ViewData["Title"] = "Stand — " + Model.CompanyName;
+}
+
+<div class="page-head">
+    <div>
+        <h1>Stand for @Model.CompanyName</h1>
+        <p class="lead">Position and size, in metres from the hall's south-west corner. The size decides how many antennas this stand is issued, which is what makes visitor interest measurable on it.</p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Exhibitors/Edit" asp-route-id="@Model.Id">Profile</a>
+        <a class="btn" asp-page="/Exhibitors/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+@if (Model.Halls.Count == 0)
+{
+    <div class="notice warn">
+        <strong>No halls yet</strong>
+        A stand needs a hall to stand in. Add one in <a asp-page="/Settings/Halls">Settings &rsaquo; Halls</a>.
+    </div>
+}
+else
+{
+    <div class="grid" style="grid-template-columns: 340px minmax(0, 1fr)">
+        <div class="card">
+            <div class="body">
+                <form method="post">
+                    <div class="field">
+                        <label for="HallId">Hall</label>
+                        <select id="HallId" asp-for="HallId" asp-items="Model.Halls"></select>
+                    </div>
+                    <div class="field required">
+                        <label for="StandNumber">Stand number</label>
+                        <input type="text" id="StandNumber" asp-for="StandNumber" maxlength="24" />
+                        <div class="help">Printed on the stand and shown to visitors in their report.</div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="X">X (m)</label>
+                            <input type="number" id="X" asp-for="X" step="0.1" min="0" />
+                        </div>
+                        <div class="field">
+                            <label for="Y">Y (m)</label>
+                            <input type="number" id="Y" asp-for="Y" step="0.1" min="0" />
+                        </div>
+                        <div class="field">
+                            <label for="WidthM">Width (m)</label>
+                            <input type="number" id="WidthM" asp-for="WidthM" step="0.1" min="1" />
+                        </div>
+                        <div class="field">
+                            <label for="DepthM">Depth (m)</label>
+                            <input type="number" id="DepthM" asp-for="DepthM" step="0.1" min="1" />
+                        </div>
+                    </div>
+
+                    <div class="notice info" id="antenna-note">
+                        <strong id="antenna-count">@Model.AntennaCount antenna(s)</strong>
+                        <span id="antenna-detail"></span>
+                    </div>
+
+                    <button class="btn primary" type="submit">Save stand</button>
+                </form>
+
+                @if (Model.QrToken is not null)
+                {
+                    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0" />
+                    <h3>E-catalogue QR</h3>
+                    <img src="/qr/@(Model.QrToken).svg" alt="QR code for this stand" style="width:150px;height:150px;border:1px solid var(--line);border-radius:6px" />
+                    <p class="small muted">Visitors scan this for the e-catalogue.
+                        <a asp-page="/Exhibitors/Qr" asp-route-id="@Model.Id">Printable sheet</a>
+                    </p>
+                }
+            </div>
+        </div>
+
+        <div class="card">
+            <header>
+                <h2>Hall plan</h2>
+                <div class="actions"><span class="small muted">Click the plan to move this stand there</span></div>
+            </header>
+            <div class="body">
+                <div class="map-wrap"><canvas id="plan"></canvas></div>
+                <div class="legend">
+                    <span><i style="background:#22354a"></i> other stands</span>
+                    <span><i style="background:#35d07f"></i> this stand</span>
+                    <span><i style="background:#b3261e"></i> overlapping — will be refused</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        (function () {
+            const halls = @Html.Raw(Model.LayoutJson);
+            const rule = @Html.Raw(Model.AntennaRuleJson);
+            if (!halls.length) return;
+
+            const canvas = document.getElementById('plan');
+            const ctx = canvas.getContext('2d');
+            const input = {
+                hall: document.getElementById('HallId'),
+                stand: document.getElementById('StandNumber'),
+                x: document.getElementById('X'),
+                y: document.getElementById('Y'),
+                w: document.getElementById('WidthM'),
+                d: document.getElementById('DepthM'),
+            };
+
+            let hall = halls.find(h => h.id === Number(input.hall.value)) || halls[0];
+            let pad = 20, scale = 1;
+
+            function num(el) { return parseFloat(el.value) || 0; }
+
+            function overlaps() {
+                const a = { x: num(input.x), y: num(input.y), w: num(input.w), d: num(input.d) };
+                return hall.stands.some(s =>
+                    a.x < s.x + s.w && a.x + a.w > s.x && a.y < s.y + s.d && a.y + a.d > s.y);
+            }
+
+            function updateAntennas() {
+                const area = num(input.w) * num(input.d);
+                let n = Math.ceil(area / rule.areaPerAntennaM2);
+                n = Math.min(Math.max(n, Math.max(1, rule.min)), Math.max(1, rule.max));
+
+                document.getElementById('antenna-count').textContent = n + ' antenna(s) on this stand';
+                document.getElementById('antenna-detail').textContent =
+                    area.toFixed(1) + ' m² at one antenna per ' + rule.areaPerAntennaM2 +
+                    ' m², mounted at ' + rule.heightM + ' m with a ' + rule.readRadiusM + ' m read radius.' +
+                    (n >= rule.max ? ' This is the configured maximum per stand.' : '');
+
+                const note = document.getElementById('antenna-note');
+                note.className = 'notice ' + (n <= 1 && area > rule.areaPerAntennaM2 * 1.5 ? 'warn' : 'info');
+            }
+
+            function resize() {
+                canvas.width = 1200;
+                canvas.height = Math.round(1200 * hall.depthM / hall.widthM);
+                scale = (canvas.width - pad * 2) / hall.widthM;
+                draw();
+            }
+
+            function screen(x, y) {
+                return { x: pad + x * scale, y: canvas.height - pad - y * scale };
+            }
+
+            function draw() {
+                ctx.fillStyle = '#0f1a26';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.strokeStyle = '#1b2b3d';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = 0; x <= hall.widthM; x += 5) {
+                    const p = screen(x, 0);
+                    ctx.moveTo(p.x, pad); ctx.lineTo(p.x, canvas.height - pad);
+                }
+                for (let y = 0; y <= hall.depthM; y += 5) {
+                    const p = screen(0, y);
+                    ctx.moveTo(pad, p.y); ctx.lineTo(canvas.width - pad, p.y);
+                }
+                ctx.stroke();
+
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                for (const s of hall.stands) {
+                    const tl = screen(s.x, s.y + s.d);
+                    ctx.fillStyle = '#22354a';
+                    ctx.fillRect(tl.x, tl.y, s.w * scale, s.d * scale);
+                    ctx.strokeStyle = '#31506e';
+                    ctx.strokeRect(tl.x, tl.y, s.w * scale, s.d * scale);
+                    if (s.w * scale > 40) {
+                        ctx.fillStyle = '#7f95ac';
+                        ctx.font = '600 11px ui-monospace, Consolas, monospace';
+                        ctx.fillText(s.stand, tl.x + s.w * scale / 2, tl.y + s.d * scale / 2);
+                    }
+                }
+
+                const bad = overlaps();
+                const tl = screen(num(input.x), num(input.y) + num(input.d));
+                ctx.fillStyle = bad ? 'rgba(179,38,30,.75)' : 'rgba(53,208,127,.75)';
+                ctx.fillRect(tl.x, tl.y, num(input.w) * scale, num(input.d) * scale);
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(tl.x, tl.y, num(input.w) * scale, num(input.d) * scale);
+            }
+
+            canvas.addEventListener('click', function (ev) {
+                const rect = canvas.getBoundingClientRect();
+                const sx = (ev.clientX - rect.left) / rect.width * canvas.width;
+                const sy = (ev.clientY - rect.top) / rect.height * canvas.height;
+                // Drop the stand centred on the click, snapped to half a metre.
+                const wx = (sx - pad) / scale - num(input.w) / 2;
+                const wy = (canvas.height - pad - sy) / scale - num(input.d) / 2;
+                input.x.value = Math.max(0, Math.round(wx * 2) / 2).toFixed(1);
+                input.y.value = Math.max(0, Math.round(wy * 2) / 2).toFixed(1);
+                draw();
+            });
+
+            for (const el of [input.x, input.y, input.w, input.d]) {
+                el.addEventListener('input', function () { updateAntennas(); draw(); });
+            }
+            input.hall.addEventListener('change', function () {
+                hall = halls.find(h => h.id === Number(input.hall.value)) || halls[0];
+                resize();
+            });
+
+            updateAntennas();
+            resize();
+        })();
+    </script>
+}

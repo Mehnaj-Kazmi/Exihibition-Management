@@ -1,0 +1,175 @@
+@page "/mylist"
+@layout Layout.ShellLayout
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="app-bar elevated">
+    <span class="app-bar-title"><div class="t1">My list</div></span>
+</div>
+
+<div class="chip-row" style="padding-left:12px">
+    <button class="chip @(_tab == 0 ? "active" : "")" @onclick="() => _tab = 0">Catalogues (@_catalogues.Count)</button>
+    <button class="chip @(_tab == 1 ? "active" : "")" @onclick="() => _tab = 1">My day</button>
+</div>
+
+<div class="screen-body">
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_tab == 0)
+    {
+        @if (_catalogues.Count == 0)
+        {
+            <EmptyState Icon="inbox" Title="Nothing collected yet"
+                        Detail="Scan the QR code on a stand, or open an exhibitor and tap Add. Everything you collect today arrives in one email this evening." />
+        }
+        else
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Good" Icon="mark_email_read"
+                            Text="@($"{_catalogues.Count} exhibitor(s) in tonight's pack. It goes to your registered email address after the halls close.")" />
+            <ul class="tile-list divided">
+                @foreach (var c in _catalogues)
+                {
+                    <li>
+                        <div class="tile" style="cursor:default">
+                            <button class="tile" style="flex:1;padding:0" @onclick="() => GoExhibitor(c.ExhibitorId)">
+                                <span class="tile-body">
+                                    <div class="tile-title">@c.ExhibitorName</div>
+                                    <div class="tile-sub">@c.HallName · Stand @c.StandNumber@(c.CatalogueFileCount > 0 ? $" · {c.CatalogueFileCount} document(s)" : "")</div>
+                                </span>
+                            </button>
+                            <button class="icon-btn" @onclick="() => Remove(c)">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    }
+    else
+    {
+        @if (_day is null)
+        {
+            <EmptyState Icon="cloud_off" Title="Could not load your day" ActionLabel="Try again" OnAction="LoadDay" />
+        }
+        else if (!_day.TrackingConsent)
+        {
+            <EmptyState Icon="visibility_off" Title="Stand tracking is off for your badge"
+                        Detail="@(_day.Message ?? "Turn it on under Profile if you would like a record of the stands you visited.")" />
+        }
+        else if (_day.Visited.Count == 0)
+        {
+            <EmptyState Icon="directions_walk" Title="Nothing recorded yet today"
+                        Detail="Stands you stop at for more than a few seconds appear here through the day." />
+        }
+        else
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Info" Icon="insights"
+                            Text="@($"{_day.StandsWithInterest} stand(s) of real interest, {_day.TotalDwellText} on the floor.")" />
+
+            @if (_day.Categories.Count > 0)
+            {
+                <div class="section-label">What you spent time on</div>
+                <ul class="tile-list divided">
+                    @foreach (var c in _day.Categories)
+                    {
+                        <li class="tile">
+                            <span class="tile-body">
+                                <div class="tile-title">@c.CategoryName</div>
+                                <div class="tile-sub">@c.DwellText across @(c.StandCount) stand(s)</div>
+                            </span>
+                            <span style="font-weight:600">@Math.Round(c.SharePct)%</span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <div class="section-label">Stands you visited</div>
+            <ul class="tile-list divided">
+                @foreach (var v in _day.Visited)
+                {
+                    <li>
+                        <button class="tile" @onclick="() => GoExhibitor(v.ExhibitorId)">
+                            <span class="tile-body">
+                                <div class="tile-title">@v.ExhibitorName</div>
+                                <div class="tile-sub">@v.Location</div>
+                                <div class="tile-sub">@v.LevelText · @v.DwellText</div>
+                            </span>
+                            @if (v.CatalogueRequested)
+                            {
+                                <span class="material-symbols-outlined filled" style="color:var(--primary)">inbox</span>
+                            }
+                        </button>
+                    </li>
+                }
+            </ul>
+
+            @if (_day.Missed.Count > 0)
+            {
+                <div class="section-label">In your categories, not yet reached</div>
+                <ul class="tile-list divided">
+                    @foreach (var m in _day.Missed)
+                    {
+                        <li>
+                            <button class="tile" @onclick="() => GoExhibitor(m.ExhibitorId)">
+                                <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">explore</span>
+                                <span class="tile-body">
+                                    <div class="tile-title">@m.ExhibitorName</div>
+                                    <div class="tile-sub">@m.Location</div>
+                                    <div class="tile-sub">@m.Reason</div>
+                                </span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    }
+</div>
+
+@code {
+    private int _tab;
+    private bool _loading;
+    private List<ScannedStand> _catalogues = [];
+    private VisitorDay? _day;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _catalogues = await State.Api.MyCatalogues();
+            State.SetCatalogueCount(_catalogues.Count);
+        }
+        catch (ApiException) { /* leave the list empty; the tab shows nothing collected */ }
+        await LoadDay();
+        _loading = false;
+    }
+
+    private void GoExhibitor(int id) => Nav.NavigateTo($"/exhibitor/{id}");
+
+    private async Task LoadDay()
+    {
+        try { _day = await State.Api.MyDay(); }
+        catch (ApiException) { _day = null; }
+    }
+
+    private async Task Remove(ScannedStand c)
+    {
+        var previous = _catalogues;
+        _catalogues = _catalogues.Where(x => x.KioskId != c.KioskId).ToList();
+        State.SetCatalogueCount(_catalogues.Count);
+        StateHasChanged();
+        try
+        {
+            await State.Api.SetCatalogueIncluded(c.KioskId, false);
+        }
+        catch (ApiException)
+        {
+            _catalogues = previous;
+            State.SetCatalogueCount(_catalogues.Count);
+        }
+    }
+}

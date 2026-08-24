@@ -1,0 +1,124 @@
+@using Exb.Data.Entities
+@model Exb.Web.Models.SessionFormModel
+@{
+    string Id(string name) => $"{Model.Prefix}-{name}";
+}
+
+<div class="form-grid">
+    <div class="field required" style="grid-column:1/-1">
+        <label for="@Id("title")">Title</label>
+        <input type="text" id="@Id("title")" name="title" value="@Model.Title" maxlength="300" required />
+    </div>
+
+    <div class="field required">
+        <label for="@Id("kind")">Kind</label>
+        <select id="@Id("kind")" name="kind">
+            @foreach (var kind in Enum.GetValues<SessionKind>())
+            {
+                <option value="@kind" selected="@(kind == Model.Kind)">@kind</option>
+            }
+        </select>
+        <div class="help">Visitors filter the programme by this before anything else.</div>
+    </div>
+
+    <div class="field required">
+        <label for="@Id("date")">Date</label>
+        <input type="date" id="@Id("date")" name="eventDate" value="@Model.EventDate.ToString("yyyy-MM-dd")" required />
+    </div>
+
+    <div class="field required">
+        <label for="@Id("starts")">Starts</label>
+        <input type="time" id="@Id("starts")" name="startsAt" value="@Model.StartsAt.ToString("HH\\:mm")" required />
+    </div>
+
+    <div class="field required">
+        <label for="@Id("ends")">Ends</label>
+        <input type="time" id="@Id("ends")" name="endsAt" value="@Model.EndsAt.ToString("HH\\:mm")" required />
+    </div>
+
+    <div class="field">
+        <label for="@Id("hall")">Hall</label>
+        <select id="@Id("hall")" name="hallId">
+            <option value="">— not in a hall —</option>
+            @foreach (var hall in Model.Halls)
+            {
+                <option value="@hall.Id" selected="@(hall.Id == Model.HallId)">@hall.Label</option>
+            }
+        </select>
+        <div class="help">Leave blank for a conference suite off the tracked floor.</div>
+    </div>
+
+    <div class="field">
+        <label for="@Id("room")">Room or theatre</label>
+        <input type="text" id="@Id("room")" name="roomName" value="@Model.RoomName" maxlength="160"
+               placeholder="Main Theatre" />
+        <div class="help">Checked for clashes. This is the location visitors are actually told.</div>
+    </div>
+
+    <div class="field">
+        <label for="@Id("category")">Category</label>
+        <select id="@Id("category")" name="categoryId">
+            <option value="">— none —</option>
+            @foreach (var category in Model.Categories)
+            {
+                <option value="@category.Id" selected="@(category.Id == Model.CategoryId)">@category.Label</option>
+            }
+        </select>
+        <div class="help">Puts the session in front of visitors browsing that category.</div>
+    </div>
+
+    <div class="field">
+        <label for="@Id("subcategory")">Sub-category</label>
+        <select id="@Id("subcategory")" name="subCategoryId">
+            <option value="">— none —</option>
+            @foreach (var sub in Model.SubCategories)
+            {
+                <option value="@sub.Id" selected="@(sub.Id == Model.SubCategoryId)">@sub.Label</option>
+            }
+        </select>
+        <div class="help">Must belong to the category chosen.</div>
+    </div>
+
+    <div class="field">
+        <label for="@Id("speaker")">Speaker</label>
+        <input type="text" id="@Id("speaker")" name="speakerName" value="@Model.SpeakerName" maxlength="200" />
+    </div>
+
+    <div class="field">
+        <label for="@Id("speakertitle")">Speaker's role</label>
+        <input type="text" id="@Id("speakertitle")" name="speakerTitle" value="@Model.SpeakerTitle" maxlength="200"
+               placeholder="Technical Director" />
+    </div>
+
+    <div class="field">
+        <label for="@Id("org")">Speaker's organisation</label>
+        <input type="text" id="@Id("org")" name="speakerOrganisation" value="@Model.SpeakerOrganisation" maxlength="200" />
+    </div>
+
+    <div class="field">
+        <label for="@Id("capacity")">Seats</label>
+        <input type="number" id="@Id("capacity")" name="capacity" value="@Model.Capacity" min="0" />
+        <div class="help">0 for uncapped. Shown as information, not a reservation.</div>
+    </div>
+
+    <div class="field">
+        <label for="@Id("language")">Language</label>
+        <input type="text" id="@Id("language")" name="language" value="@Model.Language" maxlength="8" placeholder="en" />
+    </div>
+
+    <div class="field">
+        <label for="@Id("booking")">Booking</label>
+        <label class="check">
+            <input type="checkbox" id="@Id("booking")" name="requiresBooking" value="true"
+                   checked="@Model.RequiresBooking" />
+            Visitors should register in advance
+        </label>
+        <input type="hidden" name="requiresBooking" value="false" />
+    </div>
+
+    <div class="field" style="grid-column:1/-1">
+        <label for="@Id("summary")">Abstract</label>
+        <textarea id="@Id("summary")" name="summary" rows="3" maxlength="2000">@Model.Summary</textarea>
+        <div class="help">Shown on the session's page in the app.</div>
+    </div>
+</div>

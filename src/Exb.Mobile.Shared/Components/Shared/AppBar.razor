@@ -1,0 +1,39 @@
+@* Consistent top bar used by every pushed ("detail") screen: an optional
+   back arrow, a one- or two-line title, and optional trailing action icons. *@
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+<div class="app-bar @(Elevated ? "elevated" : "")">
+    @if (ShowBack)
+    {
+        <button class="icon-btn" @onclick="Back" aria-label="Back">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </button>
+    }
+    <span class="app-bar-title">
+        <div class="t1">@Title</div>
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <div class="t2">@Subtitle</div>
+        }
+    </span>
+    @if (Actions is not null)
+    {
+        @Actions
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public bool ShowBack { get; set; } = true;
+    [Parameter] public bool Elevated { get; set; } = true;
+    [Parameter] public string? BackHref { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    private async Task Back()
+    {
+        if (!string.IsNullOrEmpty(BackHref)) { Nav.NavigateTo(BackHref); return; }
+        await Js.InvokeVoidAsync("history.back");
+    }
+}

@@ -1,0 +1,21 @@
+<button class="bottom-nav-item @(Active ? "active" : "")" @onclick="Go">
+    <span class="icon material-symbols-outlined @(Active ? "filled" : "")">@Icon</span>
+    <span class="label">@Label</span>
+    @if (Badge is > 0)
+    {
+        <span class="bottom-nav-badge">@Badge</span>
+    }
+</button>
+
+@code {
+    [Parameter] public string Href { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string? ActiveIcon { get; set; }
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public bool Active { get; set; }
+    [Parameter] public int? Badge { get; set; }
+
+    [Inject] private NavigationManager Nav { get; set; } = null!;
+
+    private void Go() => Nav.NavigateTo(Href);
+}

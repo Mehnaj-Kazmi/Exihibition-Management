@@ -1,0 +1,55 @@
+@page "/Reports/View/{id:int}"
+@model Exb.Web.Pages.Reports.ViewModel
+@using Exb.Core.Interest
+@using Exb.Data.Entities
+@{
+    ViewData["Title"] = "Report — " + Model.VisitorName;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@Model.VisitorName</h1>
+        <p class="lead">
+            Daily report for @Model.Report!.EventDate.ToString("dddd d MMMM yyyy") ·
+            @Model.Report.StandsVisited stand(s) visited, @Model.Report.StandsMissed suggested,
+            @InterestFormatting.Duration(Model.Report.TotalDwellSeconds) on stands.
+        </p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Visitors/Details" asp-route-id="@Model.VisitorId">Journey</a>
+        <a class="btn" asp-page="/Reports/View" asp-route-id="@Model.Id" asp-page-handler="Raw" target="_blank">Open standalone</a>
+        <a class="btn" asp-page="/Reports/Index">Back</a>
+    </div>
+</div>
+
+<div class="notice info">
+    <strong>This is exactly what @Model.VisitorEmail receives</strong>
+    @if (Model.Email is null)
+    {
+        <text>No email has been queued for this report.</text>
+    }
+    else
+    {
+        <text>
+            Subject: “@Model.Email.Subject” ·
+            status <strong>@Model.Email.Status</strong>
+            @if (Model.Email.SentUtc is not null)
+            {
+                <text> at @Model.Email.SentUtc.Value.ToLocalTime().ToString("HH:mm 'on' d MMM")</text>
+            }
+            @if (!string.IsNullOrEmpty(Model.Email.Error))
+            {
+                <text> — @Model.Email.Error</text>
+            }
+        </text>
+    }
+</div>
+
+<div class="card">
+    <div class="body" style="padding:0">
+        <iframe src="@Url.Page("/Reports/View", "Raw", new { id = Model.Id })"
+                sandbox=""
+                title="Daily report as the visitor receives it"
+                style="width:100%;height:1100px;border:0;border-radius:8px;background:#eef2f6"></iframe>
+    </div>
+</div>

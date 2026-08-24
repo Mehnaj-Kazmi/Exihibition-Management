@@ -1,0 +1,163 @@
+@page
+@model IndexModel
+@using Exb.Core.Interest
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Dashboard</h1>
+        <p class="lead">@Model.Today.ToString("dddd d MMMM yyyy") — live floor activity, and everything that has to be right before the doors open.</p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Live">Live floor</a>
+        <a class="btn primary" asp-page="/Reports/Index">Daily reports</a>
+    </div>
+</div>
+
+@if (Model.Warnings.Count > 0)
+{
+    <div class="notice warn">
+        <strong>Worth checking</strong>
+        <ul>
+            @foreach (var warning in Model.Warnings)
+            {
+                <li>@warning</li>
+            }
+        </ul>
+    </div>
+}
+
+<div class="grid c4" style="margin-bottom:18px">
+    <div class="tile">
+        <div class="value accent" id="tile-tracked">—</div>
+        <div class="label">badges on the floor now</div>
+        <div class="sub">@Model.DriverName</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.VisitorsSeenToday</div>
+        <div class="label">visitors seen today</div>
+        <div class="sub">of @Model.BadgedVisitors badged, @Model.RegisteredVisitors registered</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.InterestedVisitsToday</div>
+        <div class="label">stand visits showing interest</div>
+        <div class="sub">@Model.VisitsToday stop(s) recorded in total</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.ScansToday</div>
+        <div class="label">e-catalogues requested</div>
+        <div class="sub">@Model.PacksSent pack(s) built for today</div>
+    </div>
+</div>
+
+<div class="grid c2">
+    <div class="card">
+        <header>
+            <h2>Busiest stands today</h2>
+            <div class="actions"><a class="btn small" asp-page="/Reports/Index">All reports</a></div>
+        </header>
+        <div class="body tight">
+            @if (Model.BusiestStands.Count == 0)
+            {
+                <div class="empty">No stand visits recorded yet today.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead>
+                    <tr><th>Stand</th><th>Exhibitor</th><th class="num">Visitors</th><th class="num">Total time</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var stand in Model.BusiestStands)
+                    {
+                        <tr>
+                            <td class="stand">@stand.StandNumber</td>
+                            <td>@stand.Exhibitor<br /><span class="small muted">@stand.Hall</span></td>
+                            <td class="num">@stand.Visitors</td>
+                            <td class="num">@InterestFormatting.Duration(stand.TotalSeconds)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <header><h2>What visitors are interested in</h2></header>
+        <div class="body tight">
+            @if (Model.TopCategories.Count == 0)
+            {
+                <div class="empty">No category interest recorded yet today.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead>
+                    <tr><th>Category</th><th class="num">Visitors</th><th class="num">Total time</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var category in Model.TopCategories)
+                    {
+                        <tr>
+                            <td>@category.Name</td>
+                            <td class="num">@category.Visitors</td>
+                            <td class="num">@InterestFormatting.Duration(category.TotalSeconds)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <header>
+        <h2>Installation</h2>
+        <div class="actions"><a class="btn small" asp-page="/Settings/Tracking">Tracking settings</a></div>
+    </header>
+    <div class="body">
+        <div class="grid c4">
+            <div>
+                <h3>Floor</h3>
+                <p class="small">@Model.Halls hall(s), @Model.Coverage.TotalAreaM2.ToString("N0") m²<br />@Model.Stands stand(s), @Model.Exhibitors exhibitor(s)</p>
+            </div>
+            <div>
+                <h3>Antennas</h3>
+                <p class="small">@Model.Coverage.TotalAntennas on @Model.Coverage.TotalReaders reader(s)<br />@Model.Coverage.KioskAntennas on stands, @Model.Coverage.AisleAntennas in aisles</p>
+            </div>
+            <div>
+                <h3>Read radius</h3>
+                <p class="small">@Model.Coverage.KioskReadRadiusM m from a stand antenna<br />@Model.Coverage.AisleReadRadiusM m from an aisle antenna</p>
+            </div>
+            <div>
+                <h3>Measured coverage</h3>
+                <p class="small">
+                    Stand floor: @Model.Coverage.StandFloorLocalizablePct% has a full fix<br />
+                    Whole floor: @Model.Coverage.WholeFloorDetectablePct% is heard at all
+                </p>
+            </div>
+        </div>
+        <p class="small muted" style="margin:14px 0 0">
+            Coverage is measured by sampling every square metre of floor against the actual antenna
+            positions, not estimated from the antenna count. Stand-floor coverage is the figure that
+            decides whether interest data can be trusted; whole-floor coverage only affects whether
+            walking routes between stands look continuous.
+        </p>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // The dashboard's one live number; everything else on this page is a
+        // point-in-time query and would be misleading if it twitched.
+        if (window.ExbLive) {
+            ExbLive.onFrame(function (frame) {
+                document.getElementById('tile-tracked').textContent = frame.tracked;
+            });
+        }
+    </script>
+}

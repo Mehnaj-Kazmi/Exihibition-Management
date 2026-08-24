@@ -1,0 +1,101 @@
+@page "/s/{token}"
+@model Exb.Web.Pages.ScanModel
+@using Exb.Data.Services
+@{
+    ViewData["Title"] = Model.Target?.ExhibitorName ?? "E-catalogue";
+    Layout = "_VisitorLayout";
+}
+
+@if (Model.Outcome == ScanOutcome.UnknownStand)
+{
+    <div class="hero" style="background:#b3261e">
+        <h1>Stand not found</h1>
+        <p>This code does not match any stand at @Model.ExhibitionName. It may be from a previous show.</p>
+    </div>
+}
+else
+{
+    var target = Model.Target!;
+
+    <div class="hero">
+        <h1>@target.ExhibitorName</h1>
+        <p>Stand @target.StandNumber · @target.HallName</p>
+    </div>
+
+    @if (Model.Outcome == ScanOutcome.Added)
+    {
+        <div class="notice good">
+            <strong>Added to your e-catalogue pack</strong>
+            Thanks, @Model.VisitorName. This is stand @Model.TodayCount in today's pack. Everything you
+            scan today arrives in one download this evening.
+        </div>
+    }
+    else if (Model.Outcome == ScanOutcome.AlreadyRequested)
+    {
+        <div class="notice info">
+            <strong>Already in your pack</strong>
+            You scanned this stand earlier today, @Model.VisitorName. It is one of @Model.TodayCount
+            in tonight's download.
+        </div>
+    }
+
+    <div class="card">
+        <div class="body">
+            @if (target.CategoryName is not null)
+            {
+                <div class="small muted">@target.CategoryName@(target.SubCategoryName is null ? "" : " › " + target.SubCategoryName)</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(target.Summary))
+            {
+                <p style="margin:8px 0 0">@target.Summary</p>
+            }
+            <p class="small muted" style="margin:10px 0 0">
+                @if (target.CatalogueFileCount > 0)
+                {
+                    <text>@target.CatalogueFileCount catalogue file(s) available.</text>
+                }
+                else
+                {
+                    <text>This exhibitor has not uploaded a catalogue; you will receive their stand details instead.</text>
+                }
+            </p>
+            @if (!string.IsNullOrWhiteSpace(target.Website))
+            {
+                <p style="margin:10px 0 0"><a href="@Exb.Core.Text.Html.SafeUrl(target.Website)" rel="noopener nofollow" target="_blank">Visit their website</a></p>
+            }
+        </div>
+    </div>
+
+    @if (Model.Outcome == ScanOutcome.NotIdentified)
+    {
+        <div class="card">
+            <header><h2>Who are you?</h2></header>
+            <div class="body">
+                <p class="small muted">
+                    Enter the code printed on your badge so we know where to send this catalogue.
+                    We only need this once — your phone will remember for the rest of the show.
+                </p>
+                @if (Model.Problem is not null)
+                {
+                    <div class="notice bad">@Model.Problem</div>
+                }
+                <form method="post">
+                    <div class="field">
+                        <label for="Identifier">Badge code or email</label>
+                        <input type="text" id="Identifier" asp-for="Identifier" autocomplete="off"
+                               autocapitalize="characters" placeholder="A1B2-C3D4" required />
+                    </div>
+                    <button class="btn primary" type="submit" style="width:100%;justify-content:center">
+                        Add this catalogue to my pack
+                    </button>
+                </form>
+            </div>
+        </div>
+    }
+    else if (Model.VisitorAccessToken is not null)
+    {
+        <p class="center" style="margin-top:18px">
+            <a class="btn" asp-page="/Me" asp-route-token="@Model.VisitorAccessToken">See everything you have collected</a>
+        </p>
+    }
+}

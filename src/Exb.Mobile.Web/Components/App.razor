@@ -1,0 +1,22 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#125EA8" />
+    <title>Exhibition Companion</title>
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="_content/Exb.Mobile.Shared/app.css" />
+    <link rel="stylesheet" href="Exb.Mobile.Web.styles.css" />
+    <ImportMap />
+    <HeadOutlet @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+</head>
+
+<body>
+    <Routes @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

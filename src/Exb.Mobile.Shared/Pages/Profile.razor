@@ -1,0 +1,159 @@
+@page "/profile"
+@layout Layout.ShellLayout
+@inject AppState State
+
+<div class="app-bar elevated">
+    <span class="app-bar-title"><div class="t1">Profile</div></span>
+</div>
+
+<div class="screen-body">
+    @if (State.Visitor is null)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else
+    {
+        var v = State.Visitor;
+        <div class="card-row" style="margin:12px 0 18px">
+            <span class="tile-avatar" style="width:56px;height:56px;font-size:20px">@Initial(v.FullName)</span>
+            <div>
+                <div style="font-size:18px;font-weight:600">@v.FullName</div>
+                <div style="color:var(--on-surface-variant);font-size:14px">@v.Email</div>
+                @if (!string.IsNullOrEmpty(v.Company))
+                {
+                    <div style="color:var(--on-surface-variant);font-size:12.5px">@(string.IsNullOrEmpty(v.JobTitle) ? v.Company : $"{v.JobTitle} · {v.Company}")</div>
+                }
+            </div>
+        </div>
+
+        @if (!v.HasBadge)
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Warning" Text="No badge has been issued against your registration yet. Collect it at the registration desk — stand visits are recorded from the badge, not from this phone." />
+        }
+
+        <ul class="tile-list divided">
+            <li class="tile">
+                <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">badge</span>
+                <span class="tile-body"><div class="tile-title">Registration code</div><div class="tile-sub">@v.RegistrationCode</div></span>
+            </li>
+            @if (!string.IsNullOrEmpty(v.Country))
+            {
+                <li class="tile">
+                    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">public</span>
+                    <span class="tile-body"><div class="tile-title">Country</div><div class="tile-sub">@v.Country</div></span>
+                </li>
+            }
+        </ul>
+
+        <div class="section-label">Your choices</div>
+        <ul class="tile-list divided">
+            <li class="tile" style="align-items:flex-start">
+                <span class="tile-body">
+                    <div class="tile-title">Record the stands I visit</div>
+                    <div class="tile-sub">Your badge is located for headcount and safety either way. With this off, no visit is recorded and you get no interest report.</div>
+                </span>
+                <label class="switch">
+                    <input type="checkbox" checked="@v.ConsentTracking" disabled="@_busy" @onchange="e => ToggleConsent(tracking: (bool)e.Value!)" />
+                </label>
+            </li>
+            <li class="tile" style="align-items:flex-start">
+                <span class="tile-body">
+                    <div class="tile-title">Email me my e-catalogues and report</div>
+                    <div class="tile-sub">With this off, nothing is emailed to you — including the pack of catalogues you scan today.</div>
+                </span>
+                <label class="switch">
+                    <input type="checkbox" checked="@v.ConsentEmail" disabled="@_busy" @onchange="e => ToggleConsent(email: (bool)e.Value!)" />
+                </label>
+            </li>
+        </ul>
+
+        @if (_error is not null)
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Error" Text="@_error" />
+        }
+
+        @if (State.Exhibition is { } ex)
+        {
+            <ul class="tile-list divided">
+                <li class="tile">
+                    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">event</span>
+                    <span class="tile-body">
+                        <div class="tile-title">@ex.Name</div>
+                        <div class="tile-sub">@(string.Join(" · ", new[] { ex.Venue, ex.Organiser }.Where(s => !string.IsNullOrEmpty(s))))</div>
+                    </span>
+                </li>
+            </ul>
+        }
+
+        <ul class="tile-list divided">
+            <li>
+                <button class="tile" @onclick="Refresh">
+                    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">refresh</span>
+                    <span class="tile-body"><div class="tile-title">Refresh exhibition data</div><div class="tile-sub">Halls, categories and the programme, as they are right now.</div></span>
+                </button>
+            </li>
+            <li>
+                <button class="tile" @onclick="() => _confirmSignOut = true">
+                    <span class="material-symbols-outlined" style="color:var(--error)">logout</span>
+                    <span class="tile-body"><div class="tile-title" style="color:var(--error)">Sign out</div></span>
+                </button>
+            </li>
+        </ul>
+
+        @if (_toast is not null)
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Info" Text="@_toast" />
+        }
+
+        <div style="text-align:center;color:var(--on-surface-variant);font-size:12.5px;margin-top:20px">
+            Exhibition Companion @Exb.Mobile.Shared.Services.AppConfig.AppVersion<br />@State.BaseUrl
+        </div>
+    }
+</div>
+
+@if (_confirmSignOut)
+{
+    <div class="sheet-backdrop" @onclick="() => _confirmSignOut = false"></div>
+    <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="screen-body">
+            <div style="font-size:17px;font-weight:600;margin-bottom:8px">Sign out?</div>
+            <p style="font-size:13.5px;color:var(--on-surface-variant)">You will need a new code emailed to you to sign back in. Your e-catalogue list is kept — it belongs to your registration, not to this phone.</p>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+                <button class="btn btn-text" @onclick="() => _confirmSignOut = false">Cancel</button>
+                <button class="btn btn-tonal" @onclick="ConfirmSignOut">Sign out</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _busy;
+    private string? _error;
+    private string? _toast;
+    private bool _confirmSignOut;
+
+    private static string Initial(string name) => string.IsNullOrEmpty(name) ? "?" : name[..1].ToUpperInvariant();
+
+    private async Task ToggleConsent(bool? email = null, bool? tracking = null)
+    {
+        _busy = true; _error = null;
+        StateHasChanged();
+        try { await State.UpdateConsentAsync(email, tracking); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task Refresh()
+    {
+        _toast = null; _error = null;
+        try { await State.RefreshAsync(); _toast = "Up to date."; }
+        catch (ApiException ex) { _error = ex.Message; }
+    }
+
+    private async Task ConfirmSignOut()
+    {
+        _confirmSignOut = false;
+        await State.SignOutAsync();
+    }
+}

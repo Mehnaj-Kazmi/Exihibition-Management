@@ -1,0 +1,130 @@
+@page
+@model Exb.Web.Pages.Settings.CategoriesModel
+@{
+    ViewData["Title"] = "Categories";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Categories</h1>
+        <p class="lead">
+            Two levels: a category and its sub-categories. This is what a visitor's interest is rolled
+            up into, and what decides which stands they are told they missed — a sub-category match
+            outranks a category match in that ranking.
+        </p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="grid" style="grid-template-columns: minmax(0, 1fr) 340px">
+    <div class="card">
+        <header><h2>Taxonomy</h2></header>
+        <div class="body tight">
+            @if (Model.Tree.Count == 0)
+            {
+                <div class="empty">No categories yet. Add the first one on the right.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead>
+                    <tr><th>Code</th><th>Name</th><th class="num">Exhibitors</th><th class="num">Order</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var node in Model.Tree)
+                    {
+                        <tr>
+                            <form method="post" asp-page-handler="Save" id="cat-@node.Id"></form>
+                            <td>
+                                <input type="hidden" name="id" value="@node.Id" form="cat-@node.Id" />
+                                <input type="hidden" name="parentId" value="" form="cat-@node.Id" />
+                                <span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:@(node.Colour ?? "#cbd5e1");margin-right:6px"></span>
+                                <input type="text" name="code" value="@node.Code" form="cat-@node.Id" style="width:90px" />
+                            </td>
+                            <td><input type="text" name="name" value="@node.Name" form="cat-@node.Id" /></td>
+                            <td class="num">@node.Exhibitors</td>
+                            <td class="num"><input type="number" name="displayOrder" value="@node.DisplayOrder" form="cat-@node.Id" style="width:64px" /></td>
+                            <td class="nowrap">
+                                <input type="hidden" name="colour" value="@node.Colour" form="cat-@node.Id" />
+                                <button class="btn small primary" type="submit" form="cat-@node.Id">Save</button>
+                                <form method="post" asp-page-handler="Delete" style="display:inline">
+                                    <input type="hidden" name="id" value="@node.Id" />
+                                    <button class="btn small danger" type="submit">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+
+                        @foreach (var child in node.Children)
+                        {
+                            <tr>
+                                <form method="post" asp-page-handler="Save" id="cat-@child.Id"></form>
+                                <td style="padding-left:34px">
+                                    <input type="hidden" name="id" value="@child.Id" form="cat-@child.Id" />
+                                    <input type="hidden" name="parentId" value="@node.Id" form="cat-@child.Id" />
+                                    <span class="muted">└</span>
+                                    <input type="text" name="code" value="@child.Code" form="cat-@child.Id" style="width:90px" />
+                                </td>
+                                <td><input type="text" name="name" value="@child.Name" form="cat-@child.Id" /></td>
+                                <td class="num">@child.Exhibitors</td>
+                                <td class="num"><input type="number" name="displayOrder" value="@child.DisplayOrder" form="cat-@child.Id" style="width:64px" /></td>
+                                <td class="nowrap">
+                                    <input type="hidden" name="colour" value="@child.Colour" form="cat-@child.Id" />
+                                    <button class="btn small" type="submit" form="cat-@child.Id">Save</button>
+                                    <form method="post" asp-page-handler="Delete" style="display:inline">
+                                        <input type="hidden" name="id" value="@child.Id" />
+                                        <button class="btn small danger" type="submit">Remove</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <header><h2>Add a category</h2></header>
+        <div class="body">
+            <form method="post" asp-page-handler="Save">
+                <div class="field required">
+                    <label for="c-code">Code</label>
+                    <input type="text" id="c-code" name="code" maxlength="32" required placeholder="TEX" />
+                </div>
+                <div class="field required">
+                    <label for="c-name">Name</label>
+                    <input type="text" id="c-name" name="name" maxlength="120" required placeholder="Textile Machinery" />
+                </div>
+                <div class="field">
+                    <label for="c-parent">Sits under</label>
+                    <select id="c-parent" name="parentId">
+                        <option value="">— it is a top-level category —</option>
+                        @foreach (var parent in Model.TopLevel)
+                        {
+                            <option value="@parent.Id">@parent.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="c-colour">Colour</label>
+                    <input type="color" id="c-colour" name="colour" value="#2f7ed8" style="height:38px" />
+                    <div class="help">Used on the live plan and in reports.</div>
+                </div>
+                <div class="field">
+                    <label for="c-order">Display order</label>
+                    <input type="number" id="c-order" name="displayOrder" value="0" />
+                </div>
+                <button class="btn primary" type="submit">Add</button>
+            </form>
+        </div>
+    </div>
+</div>

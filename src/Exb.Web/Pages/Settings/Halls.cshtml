@@ -1,0 +1,166 @@
+@page
+@model Exb.Web.Pages.Settings.HallsModel
+@{
+    ViewData["Title"] = "Halls";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Halls</h1>
+        <p class="lead">
+            Add, remove and resize halls. Antennas are not laid out on a fixed building grid — each
+            stand is issued antennas from its own floor area — so adding a hall costs nothing until
+            stands are placed in it.
+        </p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="grid c4" style="margin-bottom:18px">
+    <div class="tile">
+        <div class="value accent">@Model.Rows.Count</div>
+        <div class="label">halls</div>
+        <div class="sub">@Model.Coverage.TotalAreaM2.ToString("N0") m² of floor</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.Coverage.TotalAntennas</div>
+        <div class="label">antennas</div>
+        <div class="sub">@Model.Coverage.KioskAntennas on stands · @Model.Coverage.AisleAntennas in aisles</div>
+    </div>
+    <div class="tile">
+        <div class="value">@Model.Coverage.TotalReaders</div>
+        <div class="label">readers required</div>
+        <div class="sub">stand and aisle runs kept separate</div>
+    </div>
+    <div class="tile">
+        <div class="value @(Model.Coverage.StandFloorLocalizablePct >= 90 ? "" : "accent")">@Model.Coverage.StandFloorLocalizablePct%</div>
+        <div class="label">stand floor fully covered</div>
+        <div class="sub">measured, not estimated</div>
+    </div>
+</div>
+
+@if (Model.Coverage.Warning is not null)
+{
+    <div class="notice warn">
+        <strong>@Model.Coverage.Warning</strong>
+        @Model.Coverage.Remedy
+    </div>
+}
+
+<div class="card">
+    <header><h2>Current halls</h2></header>
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">No halls yet. Add the first one below.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>Code</th><th>Name</th><th class="num">Width</th><th class="num">Depth</th>
+                    <th class="num">Area</th><th class="num">Stands</th><th class="num">Stand area</th>
+                    <th class="num">Antennas</th><th class="num">Readers</th><th class="num">Order</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <form method="post" asp-page-handler="Save" id="hall-@row.Id"></form>
+                        <td>
+                            <input type="hidden" name="id" value="@row.Id" form="hall-@row.Id" />
+                            <input type="text" name="code" value="@row.Code" maxlength="16" form="hall-@row.Id" style="width:80px" />
+                        </td>
+                        <td><input type="text" name="name" value="@row.Name" maxlength="120" form="hall-@row.Id" /></td>
+                        <td class="num"><input type="number" name="widthM" value="@row.WidthM" step="0.5" min="5" form="hall-@row.Id" style="width:88px" /></td>
+                        <td class="num"><input type="number" name="depthM" value="@row.DepthM" step="0.5" min="5" form="hall-@row.Id" style="width:88px" /></td>
+                        <td class="num">@((row.WidthM * row.DepthM).ToString("N0")) m²</td>
+                        <td class="num">@row.Stands</td>
+                        <td class="num">@row.StandAreaM2.ToString("N0") m²</td>
+                        <td class="num">@row.KioskAntennas<span class="muted small"> + @row.AisleAntennas</span></td>
+                        <td class="num">@row.Readers</td>
+                        <td class="num"><input type="number" name="displayOrder" value="@row.DisplayOrder" form="hall-@row.Id" style="width:64px" /></td>
+                        <td class="nowrap">
+                            <button class="btn small primary" type="submit" form="hall-@row.Id">Save</button>
+                            <form method="post" asp-page-handler="Delete" style="display:inline"
+                                  onsubmit="return confirm('Remove @row.Name from the floor plan?');">
+                                <input type="hidden" name="id" value="@row.Id" />
+                                <button class="btn small danger" type="submit">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<div class="grid c2">
+    <div class="card">
+        <header><h2>Add a hall</h2></header>
+        <div class="body">
+            <form method="post" asp-page-handler="Save">
+                <div class="form-grid">
+                    <div class="field required">
+                        <label for="new-code">Code</label>
+                        <input type="text" id="new-code" name="code" maxlength="16" placeholder="H4" required />
+                        <div class="help">Short, used in stand numbers and antenna codes.</div>
+                    </div>
+                    <div class="field required">
+                        <label for="new-name">Name</label>
+                        <input type="text" id="new-name" name="name" maxlength="120" placeholder="Hall 4 — Services" required />
+                    </div>
+                    <div class="field required">
+                        <label for="new-width">Width (m)</label>
+                        <input type="number" id="new-width" name="widthM" value="60" step="0.5" min="5" required />
+                    </div>
+                    <div class="field required">
+                        <label for="new-depth">Depth (m)</label>
+                        <input type="number" id="new-depth" name="depthM" value="40" step="0.5" min="5" required />
+                    </div>
+                    <div class="field">
+                        <label for="new-order">Display order</label>
+                        <input type="number" id="new-order" name="displayOrder" value="@(Model.Rows.Count + 1)" />
+                    </div>
+                </div>
+                <button class="btn primary" type="submit">Add hall</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <header><h2>What changing a hall does</h2></header>
+        <div class="body small">
+            <p>
+                <strong>Adding one</strong> gives you an empty floor. No antennas are provisioned until
+                stands are placed, because antennas belong to stands here, not to the ceiling. If the
+                aisle grid is @(Model.AisleGridOn ? "on, a sparse ceiling grid is laid over the aisles for walking routes" : "off, nothing is placed in the aisles").
+            </p>
+            <p>
+                <strong>Resizing</strong> re-lays the aisle grid and re-measures coverage. Stands keep their
+                positions; a shrink that would leave a stand outside the building is refused rather than
+                quietly moving an exhibitor.
+            </p>
+            <p>
+                <strong>Removing</strong> requires the hall to be empty, and retires it rather than deleting it,
+                because visit history and past reports refer to it.
+            </p>
+            <p class="muted">
+                Antenna density per stand is set in
+                <a asp-page="/Settings/Tracking">Tracking &amp; dwell</a> — currently one antenna per
+                @Model.AreaPerAntenna m² of stand.
+            </p>
+        </div>
+    </div>
+</div>

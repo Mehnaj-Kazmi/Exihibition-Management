@@ -1,0 +1,100 @@
+@page
+@model Exb.Web.Pages.Exhibitors.IndexModel
+@{
+    ViewData["Title"] = "Exhibitors";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Exhibitors &amp; stands</h1>
+        <p class="lead">@Model.TotalExhibitors exhibitor(s), @Model.PlacedStands stand(s) placed on the floor. Each stand's size decides how many antennas it is issued.</p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Exhibitors/Qr">Print QR sheets</a>
+        <a class="btn primary" asp-page="/Exhibitors/Edit">Add exhibitor</a>
+    </div>
+</div>
+
+<form method="get" class="toolbar">
+    <input type="search" name="q" value="@Model.Q" placeholder="Company, code or stand number" />
+    <select name="hallId" asp-items="Model.Halls"><option value="">All halls</option></select>
+    <select name="categoryId" asp-items="Model.Categories"><option value="">All categories</option></select>
+    <label class="check"><input type="checkbox" name="unplaced" value="true" checked="@Model.Unplaced" /> <span>Not yet placed</span></label>
+    <button class="btn" type="submit">Filter</button>
+    <a class="btn" asp-page="/Exhibitors/Index">Clear</a>
+</form>
+
+<div class="card">
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">No exhibitors match. <a asp-page="/Exhibitors/Edit">Add one</a>.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>Stand</th><th>Exhibitor</th><th>Category</th><th>Hall</th>
+                    <th class="num">Size</th><th class="num">Antennas</th>
+                    <th class="num">Files</th><th class="num">Interested today</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td class="stand">
+                            @if (row.StandNumber is null)
+                            {
+                                <span class="badge warn">not placed</span>
+                            }
+                            else
+                            {
+                                @row.StandNumber
+                            }
+                        </td>
+                        <td>
+                            <a asp-page="/Exhibitors/Edit" asp-route-id="@row.ExhibitorId">@row.Company</a>
+                            <br /><span class="small muted mono">@row.Code</span>
+                        </td>
+                        <td class="small">
+                            @row.CategoryName
+                            @if (row.SubCategoryName is not null)
+                            {
+                                <br />
+                                <span class="muted">@row.SubCategoryName</span>
+                            }
+                        </td>
+                        <td class="small">@row.HallName</td>
+                        <td class="num">@(row.KioskId is null ? "—" : row.AreaM2 + " m²")</td>
+                        <td class="num">
+                            @if (row.KioskId is null)
+                            {
+                                <span class="muted">—</span>
+                            }
+                            else if (row.Antennas == 0)
+                            {
+                                <span class="badge bad">0</span>
+                            }
+                            else
+                            {
+                                @row.Antennas
+                            }
+                        </td>
+                        <td class="num">@row.CatalogueFiles</td>
+                        <td class="num">@(row.InterestedToday == 0 ? "—" : row.InterestedToday.ToString())</td>
+                        <td class="nowrap">
+                            <a class="btn small" asp-page="/Exhibitors/Stand" asp-route-id="@row.ExhibitorId">Stand</a>
+                            @if (row.QrToken is not null)
+                            {
+                                <a class="btn small" asp-page="/Exhibitors/Qr" asp-route-id="@row.ExhibitorId">QR</a>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

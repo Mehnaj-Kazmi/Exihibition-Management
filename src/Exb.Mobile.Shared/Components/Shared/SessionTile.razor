@@ -1,0 +1,35 @@
+@inject NavigationManager Nav
+
+<button class="tile" @onclick="Go">
+    <span class="session-time">
+        <div class="start">@Session.StartsAt.ToString("HH:mm")</div>
+        <div class="dur">@(Session.DurationMinutes)m</div>
+    </span>
+    <span class="tile-body">
+        <div class="tile-title">@Session.Title</div>
+        <div class="tile-sub">
+            <span class="session-kind" style="color:var(@Kind.ColorVar)">
+                <span class="material-symbols-outlined">@Kind.Icon</span>@Session.Kind
+            </span>
+            @if (ShowDate)
+            {
+                @:· @Session.EventDate.ToString("ddd d MMM")
+            }
+        </div>
+        <div class="tile-sub">@SubLine2</div>
+    </span>
+    @if (Session.Bookmarked)
+    {
+        <span class="tile-trailing"><span class="material-symbols-outlined filled" style="color:var(--primary)">bookmark</span></span>
+    }
+</button>
+
+@code {
+    [Parameter, EditorRequired] public Session Session { get; set; } = null!;
+    [Parameter] public bool ShowDate { get; set; }
+
+    private (string Icon, string ColorVar) Kind => SessionKindStyle.For(Session.Kind);
+    private string SubLine2 => string.IsNullOrEmpty(Session.SpeakerName) ? Session.Where : $"{Session.SpeakerName} · {Session.Where}";
+
+    private void Go() => Nav.NavigateTo($"/session/{Session.Id}");
+}

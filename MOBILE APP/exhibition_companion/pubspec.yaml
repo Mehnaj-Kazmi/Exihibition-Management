@@ -1,0 +1,43 @@
+name: exhibition_companion
+description: Visitor companion app for the RFID Exhibition Tracking system — search exhibitors, halls and the programme, and collect e-catalogues by scanning stand QR codes.
+publish_to: "none"
+
+# Bumping this bumps both stores. The build number after the + is what Google
+# Play and App Store Connect actually order releases by, so it must never go
+# backwards even if the version before it does.
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # HTTP rather than dio: the API is a dozen plain JSON endpoints, and one
+  # dependency that ships with the Dart team is easier to keep building for
+  # years than a large client we would use a tenth of.
+  http: ^1.2.2
+
+  # Where the bearer token lives between launches. Backed by the Keychain on
+  # iOS and SharedPreferences on Android.
+  shared_preferences: ^2.3.2
+
+  # The camera and the QR decoding for the e-catalogue scanner. Wraps MLKit on
+  # Android and AVFoundation on iOS, so scanning is as fast as the phone's own
+  # camera app.
+  mobile_scanner: ^5.2.3
+
+  # Opening exhibitor websites, phone numbers and email addresses.
+  url_launcher: ^6.3.0
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,16 @@
+@inject NavigationManager Nav
+
+<button class="tile" @onclick="Go">
+    <span class="tile-avatar hall">@Hall.Code</span>
+    <span class="tile-body">
+        <div class="tile-title">@Hall.Name</div>
+        <div class="tile-sub">@(Hall.ExhibitorCount) exhibitors · @(Hall.StandCount) stands · @Math.Round(Hall.WidthM)×@Math.Round(Hall.DepthM) m</div>
+    </span>
+    <span class="material-symbols-outlined chevron">chevron_right</span>
+</button>
+
+@code {
+    [Parameter, EditorRequired] public Hall Hall { get; set; } = null!;
+
+    private void Go() => Nav.NavigateTo($"/hall/{Hall.Id}");
+}

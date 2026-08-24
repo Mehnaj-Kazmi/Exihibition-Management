@@ -1,0 +1,8 @@
+@page "/"
+@inject NavigationManager Nav
+@inject AppState State
+
+@code {
+    protected override void OnInitialized()
+        => Nav.NavigateTo(State.Stage == AuthStage.SignedIn ? "/search" : "/login", replace: true);
+}

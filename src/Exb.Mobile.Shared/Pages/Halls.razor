@@ -1,0 +1,20 @@
+@page "/halls"
+@inject AppState State
+
+<AppBar Title="Halls" />
+
+<div class="screen-body">
+    @if (State.Halls.Count == 0)
+    {
+        <EmptyState Icon="map" Title="No halls published yet" />
+    }
+    else
+    {
+        <ul class="tile-list divided">
+            @foreach (var h in State.Halls)
+            {
+                <li><HallTile Hall="h" /></li>
+            }
+        </ul>
+    }
+</div>

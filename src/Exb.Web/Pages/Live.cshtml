@@ -1,0 +1,143 @@
+@page
+@model LiveModel
+@{
+    ViewData["Title"] = "Live floor";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Live floor</h1>
+        <p class="lead">Every badge in the building, solved from stand antenna measurements about twice a second. Click a stand to see who is standing at it.</p>
+    </div>
+    <div class="actions">
+        <label class="check" style="align-items:center"><input type="checkbox" id="show-antennas" /> <span class="small">Show antennas</span></label>
+    </div>
+</div>
+
+@if (!Model.HasHalls)
+{
+    <div class="notice warn">
+        <strong>No halls configured</strong>
+        There is nothing to draw yet. Add a hall in <a asp-page="/Settings/Halls">Settings &rsaquo; Halls</a>, then place some stands.
+    </div>
+}
+else
+{
+    <div class="hall-tabs" id="hall-tabs"></div>
+
+    <div class="grid" style="grid-template-columns: minmax(0, 1fr) 300px">
+        <div class="card">
+            <div class="body">
+                <div class="map-wrap"><canvas id="floor"></canvas></div>
+                <div class="legend">
+                    <span><i style="background:#35d07f"></i> in an aisle</span>
+                    <span><i style="background:#4aa8ff"></i> at a stand</span>
+                    <span><i style="background:#7a8899"></i> not heard recently</span>
+                    <span><i style="background:#f0a742"></i> antenna</span>
+                    <span>faint halo = position uncertainty, to scale</span>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <header><h2>Selected stand</h2></header>
+                <div class="body" id="stand-detail">
+                    <p class="small muted">Click a stand on the plan.</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <header><h2>Busiest right now</h2></header>
+                <div class="body tight">
+                    <table class="data">
+                        <tbody id="busiest"><tr><td class="empty">waiting for data</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/floor.js" asp-append-version="true"></script>
+    <script>
+        (function () {
+            const halls = @Html.Raw(Model.LayoutJson);
+            if (!halls.length) return;
+
+            let current = halls[0];
+            let showAntennas = false;
+
+            const canvas = document.getElementById('floor');
+            const tabs = document.getElementById('hall-tabs');
+            const detail = document.getElementById('stand-detail');
+            const busiest = document.getElementById('busiest');
+
+            const floor = new ExbFloor(canvas, {
+                onSelect: function (stand) { renderDetail(stand); }
+            });
+
+            function selectHall(hall) {
+                current = hall;
+                floor.showAntennas = showAntennas;
+                floor.setHall(hall, hall.stands, hall.antennas);
+                for (const button of tabs.children) {
+                    button.classList.toggle('active', button.dataset.id === String(hall.id));
+                }
+                const frame = window.ExbLive && ExbLive.latest();
+                if (frame) paint(frame);
+            }
+
+            for (const hall of halls) {
+                const button = document.createElement('button');
+                button.textContent = hall.name;
+                button.dataset.id = hall.id;
+                button.onclick = () => selectHall(hall);
+                tabs.appendChild(button);
+            }
+
+            document.getElementById('show-antennas').addEventListener('change', function (ev) {
+                showAntennas = ev.target.checked;
+                floor.showAntennas = showAntennas;
+                floor.draw();
+            });
+
+            function renderDetail(stand) {
+                if (!stand) {
+                    detail.innerHTML = '<p class="small muted">Click a stand on the plan.</p>';
+                    return;
+                }
+                const here = floor.occupancy[stand.id] || 0;
+                detail.innerHTML =
+                    '<div class="mono" style="font-weight:600">' + stand.stand + '</div>' +
+                    '<div style="margin:2px 0 10px">' + stand.name + '</div>' +
+                    '<table class="data"><tbody>' +
+                    '<tr><td>Here now</td><td class="num">' + here + '</td></tr>' +
+                    '<tr><td>Size</td><td class="num">' + stand.w + ' × ' + stand.d + ' m</td></tr>' +
+                    '<tr><td>Antennas</td><td class="num">' + stand.antennas + '</td></tr>' +
+                    '</tbody></table>';
+            }
+
+            function paint(frame) {
+                floor.setBadges(frame.badges.filter(b => b.h === current.id));
+
+                if (!frame.busiestStands.length) {
+                    busiest.innerHTML = '<tr><td class="empty">nobody on a stand yet</td></tr>';
+                } else {
+                    busiest.innerHTML = frame.busiestStands.map(s =>
+                        '<tr><td class="stand">' + s.standNumber + '</td>' +
+                        '<td>' + s.exhibitor + '</td>' +
+                        '<td class="num">' + s.here + '</td></tr>').join('');
+                }
+
+                const selected = current.stands.find(s => s.id === floor.selected);
+                if (selected) renderDetail(selected);
+            }
+
+            if (window.ExbLive) ExbLive.onFrame(paint);
+            selectHall(current);
+            window.addEventListener('resize', () => floor.resize());
+        })();
+    </script>
+}

@@ -1,0 +1,36 @@
+@* Shared exhibitor row — reused on Halls, Categories→ExhibitorList, Search, HallDetail and Programme's "Speaking at".
+   Owns its own navigation, matching the original app: a list screen never needs to know what tapping a row does. *@
+@inject NavigationManager Nav
+
+<button class="tile" @onclick="Go">
+    <span class="tile-avatar">@Initial</span>
+    <span class="tile-body">
+        <div class="tile-title">@Exhibitor.CompanyName</div>
+        <div class="tile-sub accent">@Exhibitor.Location</div>
+        @if (!string.IsNullOrEmpty(Exhibitor.CategoryName))
+        {
+            <div class="tile-sub">
+                @Exhibitor.CategoryName
+                @if (!string.IsNullOrEmpty(Exhibitor.SubCategoryName))
+                {
+                    @:› @Exhibitor.SubCategoryName
+                }
+            </div>
+        }
+    </span>
+    <span class="tile-trailing">
+        @if (Exhibitor.CatalogueCount > 0)
+        {
+            <span class="material-symbols-outlined" style="font-size:18px" title="@(Exhibitor.CatalogueCount) e-catalogue(s)">picture_as_pdf</span>
+        }
+        <span class="material-symbols-outlined chevron">chevron_right</span>
+    </span>
+</button>
+
+@code {
+    [Parameter, EditorRequired] public Exhibitor Exhibitor { get; set; } = null!;
+
+    private string Initial => string.IsNullOrEmpty(Exhibitor.CompanyName) ? "?" : Exhibitor.CompanyName[..1].ToUpperInvariant();
+
+    private void Go() => Nav.NavigateTo($"/exhibitor/{Exhibitor.Id}");
+}

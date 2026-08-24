@@ -1,0 +1,142 @@
+@page "/me/{token}"
+@model Exb.Web.Pages.MeModel
+@using Exb.Core.Interest
+@{
+    ViewData["Title"] = "My exhibition";
+    Layout = "_VisitorLayout";
+}
+
+@if (Model.Visitor is null)
+{
+    <div class="hero" style="background:#b3261e">
+        <h1>Badge not recognised</h1>
+        <p>This link does not match a registered visitor. The registration desk can help.</p>
+    </div>
+}
+else
+{
+    <div class="hero">
+        <h1>Hello, @Model.Visitor.FullName.Split(' ')[0]</h1>
+        <p>@Model.ExhibitionName · @Model.Today.ToString("dddd d MMMM")</p>
+    </div>
+
+    @if (Model.Message is not null)
+    {
+        <div class="notice good">@Model.Message</div>
+    }
+
+    @if (Model.Delivery?.TransferUrl is not null)
+    {
+        <div class="notice info">
+            <strong>Your pack is ready</strong>
+            <a href="@Model.Delivery.TransferUrl">Download @Model.Delivery.ItemCount exhibitor catalogue(s)</a>
+            @if (Model.Delivery.TransferExpiresUtc is { } expiry)
+            {
+                <text> — available until @expiry.ToString("d MMMM")</text>
+            }
+        </div>
+    }
+
+    <div class="card">
+        <header><h2>E-catalogues you have collected</h2></header>
+        <div class="body tight">
+            @if (Model.Scans.Count == 0)
+            {
+                <div class="empty">
+                    Nothing yet. Scan the QR code on any stand and it will appear here,
+                    then arrive by email this evening.
+                </div>
+            }
+            else
+            {
+                <table class="data">
+                    <tbody>
+                    @foreach (var scan in Model.Scans)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@scan.ExhibitorName</strong><br />
+                                <span class="small muted">
+                                    Stand @scan.StandNumber · @scan.HallName
+                                    @if (scan.CategoryName is not null)
+                                    {
+                                        <text> · @scan.CategoryName</text>
+                                    }
+                                </span>
+                            </td>
+                            <td class="right nowrap">
+                                <form method="post" asp-page-handler="Remove" asp-route-token="@Model.Token">
+                                    <input type="hidden" name="kioskId" value="@scan.KioskId" />
+                                    <button class="btn small" type="submit">Remove</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                <p class="small muted" style="padding:12px 14px;margin:0">
+                    All of these are sent to @Model.Visitor.Email in one download when the halls close.
+                </p>
+            }
+        </div>
+    </div>
+
+    @if (!Model.Visitor.ConsentTracking)
+    {
+        <div class="notice">
+            You asked us not to track your badge, so we are not recording which stands you visit.
+            Only the catalogues you choose to scan appear here.
+        </div>
+    }
+    else if (Model.Profile is { Visited.Count: > 0 })
+    {
+        <div class="card">
+            <header><h2>Where you have spent your time</h2></header>
+            <div class="body tight">
+                <table class="data">
+                    <tbody>
+                    @foreach (var visited in Model.Profile.Visited.Take(12))
+                    {
+                        <tr>
+                            <td>
+                                <strong>@visited.Kiosk.ExhibitorName</strong><br />
+                                <span class="small muted">Stand @visited.Kiosk.StandNumber · @visited.Kiosk.CategoryName</span>
+                            </td>
+                            <td class="right nowrap small">@visited.DwellText</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+                <p class="small muted" style="padding:12px 14px;margin:0">
+                    Measured from your badge. This evening you will receive a summary, along with stands
+                    in the same categories you have not reached yet.
+                </p>
+            </div>
+        </div>
+
+        @if (Model.Profile.Missed.Count > 0)
+        {
+            <div class="card">
+                <header><h2>You might also want to see</h2></header>
+                <div class="body tight">
+                    <table class="data">
+                        <tbody>
+                        @foreach (var missed in Model.Profile.Missed.Take(8))
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@missed.Kiosk.ExhibitorName</strong><br />
+                                    <span class="small muted">
+                                        Stand @missed.Kiosk.StandNumber · @missed.Kiosk.HallName · zone @missed.Kiosk.Zone
+                                    </span>
+                                </td>
+                                <td class="right small muted nowrap">@missed.Kiosk.CategoryName</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}

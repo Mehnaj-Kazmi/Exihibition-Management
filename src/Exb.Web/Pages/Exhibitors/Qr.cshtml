@@ -1,0 +1,70 @@
+@page "/Exhibitors/Qr/{id:int?}"
+@model Exb.Web.Pages.Exhibitors.QrModel
+@{
+    ViewData["Title"] = "QR signage";
+}
+
+<div class="page-head no-print">
+    <div>
+        <h1>E-catalogue QR signage</h1>
+        <p class="lead">One sheet per stand. A visitor scans it with their phone camera, the page identifies them from their badge, and the catalogue joins their evening pack.</p>
+    </div>
+    <div class="actions">
+        <button class="btn primary" onclick="window.print()">Print</button>
+        <a class="btn" asp-page="/Exhibitors/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.BaseUrlLooksLocal)
+{
+    <div class="notice bad no-print">
+        <strong>These codes will not work on a phone</strong>
+        The public base URL is <span class="mono">@Model.BaseUrl</span>, which only resolves on this machine.
+        Set it to the address visitors' phones can reach in
+        <a asp-page="/Settings/Delivery">Settings &rsaquo; Delivery</a> before printing.
+    </div>
+}
+
+@if (Model.Id is null && Model.Halls.Count > 0)
+{
+    <form method="get" class="toolbar no-print">
+        <select name="hallId">
+            <option value="">All halls</option>
+            @foreach (var hall in Model.Halls)
+            {
+                <option value="@hall.Id" selected="@(Model.HallId == hall.Id)">@hall.Name</option>
+            }
+        </select>
+        <button class="btn" type="submit">Show</button>
+        <span class="small muted">@Model.Sheets.Count sheet(s)</span>
+    </form>
+}
+
+@if (Model.Sheets.Count == 0)
+{
+    <div class="notice warn">No stands have been placed yet, so there is nothing to print.</div>
+}
+
+<div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr))">
+    @foreach (var sheet in Model.Sheets)
+    {
+        <div class="card" style="break-inside:avoid">
+            <div class="body center">
+                <div class="mono" style="font-size:22px;font-weight:700">@sheet.StandNumber</div>
+                <div style="font-size:15px;font-weight:600;margin:2px 0 1px">@sheet.Company</div>
+                <div class="small muted">@sheet.HallName@(sheet.CategoryName is null ? "" : " · " + sheet.CategoryName)</div>
+
+                <img src="/qr/@(sheet.QrToken).svg" alt="Scan for the e-catalogue of @sheet.Company"
+                     style="width:200px;height:200px;margin:12px auto 6px;display:block" />
+
+                <div style="font-size:14px;font-weight:600">Scan for our e-catalogue</div>
+                <div class="small muted" style="margin-top:3px">
+                    Everything you scan today is emailed to you this evening in one download.
+                </div>
+                <div class="small muted mono" style="margin-top:8px;word-break:break-all">
+                    @Model.BaseUrl/s/@sheet.QrToken
+                </div>
+            </div>
+        </div>
+    }
+</div>

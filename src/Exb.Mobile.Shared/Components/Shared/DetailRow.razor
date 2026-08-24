@@ -1,0 +1,16 @@
+<div class="tile" style="cursor:default">
+    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">@Icon</span>
+    <span class="tile-body">
+        <div class="tile-title" style="font-weight:500">@Title</div>
+        @if (!string.IsNullOrEmpty(Subtitle))
+        {
+            <div class="tile-sub">@Subtitle</div>
+        }
+    </span>
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+}

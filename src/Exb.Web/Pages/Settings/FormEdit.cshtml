@@ -1,0 +1,320 @@
+@page
+@model Exb.Web.Pages.Settings.FormEditModel
+@using Exb.Core.Forms
+@{
+    ViewData["Title"] = "Form layout";
+    var d = Model.Definition;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@(Model.Entity == FormEntityKind.Visitor ? "Visitor registration form" : "Exhibitor profile form")</h1>
+        <p class="lead">
+            Arrange this exhibition's form. Nothing is saved until you press Save, which creates a new
+            version and makes it live.
+        </p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Settings/Forms">Back</a>
+        <button class="btn primary" type="submit" form="save-form">Save and make live</button>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Dirty)
+{
+    <div class="notice warn"><strong>Unsaved changes</strong> Nothing has been written yet.</div>
+}
+@if (Model.Problems.Count > 0)
+{
+    <div class="notice bad">
+        <strong>This layout cannot go live yet</strong>
+        <ul>
+            @foreach (var problem in Model.Problems)
+            {
+                <li>@problem</li>
+            }
+        </ul>
+    </div>
+}
+
+@* Every button posts the working copy back, so the editor holds no server state. *@
+<form method="post" asp-page-handler="Save" id="save-form">
+    <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+    <input type="hidden" name="Entity" value="@Model.Entity" />
+    <input type="hidden" name="name" value="@d.Name" />
+</form>
+
+<div class="grid" style="grid-template-columns: minmax(0, 1fr) 420px">
+    <div>
+        @foreach (var block in d.Sections)
+        {
+            <div class="builder-section">
+                <header>
+                    <span class="title">@block.Title</span>
+                    <span class="small muted">@block.Fields.Count field(s) · @block.Columns column(s)</span>
+                    <div class="actions">
+                        <form method="post" asp-page-handler="MoveSection" style="display:inline">
+                            <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                            <input type="hidden" name="Entity" value="@Model.Entity" />
+                            <input type="hidden" name="sectionId" value="@block.Id" />
+                            <button class="btn small" name="delta" value="-1" type="submit" title="Move section up">↑</button>
+                            <button class="btn small" name="delta" value="1" type="submit" title="Move section down">↓</button>
+                        </form>
+                        <form method="post" asp-page-handler="RemoveSection" style="display:inline"
+                              onsubmit="return confirm('Remove this section? Its fields move to the first remaining section.');">
+                            <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                            <input type="hidden" name="Entity" value="@Model.Entity" />
+                            <input type="hidden" name="sectionId" value="@block.Id" />
+                            <button class="btn small danger" type="submit">Remove</button>
+                        </form>
+                    </div>
+                </header>
+
+                <form method="post" asp-page-handler="UpdateSection" class="field-row" style="gap:8px">
+                    <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                    <input type="hidden" name="Entity" value="@Model.Entity" />
+                    <input type="hidden" name="sectionId" value="@block.Id" />
+                    <input type="text" name="title" value="@block.Title" style="max-width:220px" />
+                    <input type="text" name="description" value="@block.Description" placeholder="Optional note under the heading" />
+                    <select name="columns" style="width:110px">
+                        <option value="1" selected="@(block.Columns == 1)">1 column</option>
+                        <option value="2" selected="@(block.Columns == 2)">2 columns</option>
+                    </select>
+                    <button class="btn small" type="submit">Update</button>
+                </form>
+
+                @foreach (var field in block.Fields)
+                {
+                    var binding = CoreProperties.Find(Model.Entity, field.CoreProperty);
+                    <div class="field-row @(field.Enabled ? "" : "disabled")">
+                        <div>
+                            <div class="label">@(string.IsNullOrWhiteSpace(field.Label) ? "(no label)" : field.Label)</div>
+                            <div class="key">@field.Key · @field.Type</div>
+                        </div>
+                        <div class="flags">
+                            @if (binding is not null)
+                            {
+                                <span class="badge info" title="@binding.Why">@binding.Label</span>
+                            }
+                            @if (binding?.SystemRequired == true)
+                            {
+                                <span class="badge warn">required by the system</span>
+                            }
+                            @if (field.Required)
+                            {
+                                <span class="badge">required</span>
+                            }
+                            @if (field.AdminOnly)
+                            {
+                                <span class="badge">staff only</span>
+                            }
+                            @if (field.Width >= 2)
+                            {
+                                <span class="badge">full width</span>
+                            }
+                            @if (!field.Enabled)
+                            {
+                                <span class="badge bad">off</span>
+                            }
+                        </div>
+                        <div class="move">
+                            <form method="post" style="display:inline">
+                                <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                                <input type="hidden" name="Entity" value="@Model.Entity" />
+                                <input type="hidden" name="key" value="@field.Key" />
+                                <button class="btn small" type="submit" asp-page-handler="MoveField" name="delta" value="-1" title="Move up">↑</button>
+                                <button class="btn small" type="submit" asp-page-handler="MoveField" name="delta" value="1" title="Move down">↓</button>
+                                <button class="btn small" type="submit" asp-page-handler="ToggleRequired">@(field.Required ? "Optional" : "Required")</button>
+                                <button class="btn small" type="submit" asp-page-handler="ToggleField">@(field.Enabled ? "Turn off" : "Turn on")</button>
+                                <button class="btn small danger" type="submit" asp-page-handler="RemoveField">Delete</button>
+                            </form>
+                            <details style="display:inline-block;margin-left:6px">
+                                <summary class="btn small" style="list-style:none">Edit</summary>
+                                <div style="position:absolute;z-index:20;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;box-shadow:var(--shadow);padding:14px;width:360px;margin-top:6px">
+                                    <form method="post" asp-page-handler="UpdateField">
+                                        <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                                        <input type="hidden" name="Entity" value="@Model.Entity" />
+                                        <input type="hidden" name="key" value="@field.Key" />
+                                        <div class="field">
+                                            <label>Label</label>
+                                            <input type="text" name="label" value="@field.Label" />
+                                        </div>
+                                        <div class="field">
+                                            <label>Help text</label>
+                                            <input type="text" name="helpText" value="@field.HelpText" />
+                                        </div>
+                                        <div class="form-grid">
+                                            <div class="field">
+                                                <label>Width</label>
+                                                <select name="width">
+                                                    <option value="1" selected="@(field.Width < 2)">Half</option>
+                                                    <option value="2" selected="@(field.Width >= 2)">Full</option>
+                                                </select>
+                                            </div>
+                                            <div class="field">
+                                                <label>Max length</label>
+                                                <input type="number" name="maxLength" value="@field.MaxLength" min="1" />
+                                            </div>
+                                        </div>
+                                        <div class="field">
+                                            <label class="check">
+                                                <input type="hidden" name="adminOnly" value="false" />
+                                                <input type="checkbox" name="adminOnly" value="true" checked="@field.AdminOnly" />
+                                                <span>Staff only — hidden from visitor-facing pages</span>
+                                            </label>
+                                        </div>
+                                        @if (field.Type is FormFieldType.Select or FormFieldType.Radio or FormFieldType.MultiSelect)
+                                        {
+                                            <div class="field">
+                                                <label>Options, one per line</label>
+                                                <textarea name="optionsText" rows="5" placeholder="value|Label&#10;or just a label">@string.Join("\n", field.Options.Select(o => $"{o.Value}|{o.Label}"))</textarea>
+                                            </div>
+                                        }
+                                        <div class="field">
+                                            <label>Validation pattern</label>
+                                            <input type="text" name="pattern" value="@field.Pattern" placeholder="^[0-9]{15}$" />
+                                        </div>
+                                        <div class="field">
+                                            <label>Message if it does not match</label>
+                                            <input type="text" name="patternMessage" value="@field.PatternMessage" />
+                                        </div>
+                                        <button class="btn primary small" type="submit">Apply</button>
+                                    </form>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                }
+
+                @if (d.Sections.Count > 1)
+                {
+                    <div class="field-row">
+                        <form method="post" asp-page-handler="MoveToSection" style="display:flex;gap:8px;align-items:center;width:100%">
+                            <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                            <input type="hidden" name="Entity" value="@Model.Entity" />
+                            <span class="small muted">Move a field here:</span>
+                            <select name="key" style="max-width:220px">
+                                @foreach (var other in d.Sections.Where(s => s.Id != block.Id).SelectMany(s => s.Fields))
+                                {
+                                    <option value="@other.Key">@other.Label</option>
+                                }
+                            </select>
+                            <input type="hidden" name="sectionId" value="@block.Id" />
+                            <button class="btn small" type="submit">Move</button>
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="card">
+            <header><h2>Add a section</h2></header>
+            <div class="body">
+                <form method="post" asp-page-handler="AddSection" class="toolbar" style="margin:0">
+                    <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                    <input type="hidden" name="Entity" value="@Model.Entity" />
+                    <input type="text" name="title" placeholder="Section heading" required />
+                    <select name="columns">
+                        <option value="2">2 columns</option>
+                        <option value="1">1 column</option>
+                    </select>
+                    <button class="btn" type="submit">Add section</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div>
+        <div class="card">
+            <header><h2>Add a field</h2></header>
+            <div class="body">
+                <form method="post" asp-page-handler="AddField">
+                    <input type="hidden" name="DefinitionJson" value="@Model.DefinitionJson" />
+                    <input type="hidden" name="Entity" value="@Model.Entity" />
+
+                    <div class="field required">
+                        <label>Into section</label>
+                        <select name="sectionId" required>
+                            @foreach (var block in d.Sections)
+                            {
+                                <option value="@block.Id">@block.Title</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field required">
+                        <label>Label</label>
+                        <input type="text" name="label" required placeholder="VAT registration number" />
+                    </div>
+                    <div class="field">
+                        <label>Key</label>
+                        <input type="text" name="key" placeholder="left blank, derived from the label" />
+                        <div class="help">Used as the stored property name. Cannot be changed later.</div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="field">
+                            <label>Type</label>
+                            <select name="type">
+                                @foreach (var type in Enum.GetValues<FormFieldType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Width</label>
+                            <select name="width">
+                                <option value="1">Half</option>
+                                <option value="2">Full</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Store it in</label>
+                        <select name="coreProperty">
+                            <option value="">The profile (free-form answers)</option>
+                            @foreach (var binding in Model.Bindings)
+                            {
+                                <option value="@binding.Property">@binding.Label — @binding.Why</option>
+                            }
+                        </select>
+                        <div class="help">Most fields belong in the profile. Only bind to a column when the system itself must act on the answer.</div>
+                    </div>
+                    <div class="field">
+                        <label>Choices come from</label>
+                        <select name="optionsSource">
+                            <option value="">The list I type below</option>
+                            <option value="@FormOptionSources.Categories">Your categories — kept in step automatically</option>
+                            <option value="@FormOptionSources.SubCategories">Your sub-categories</option>
+                            <option value="@FormOptionSources.Countries">The country list</option>
+                            <option value="@FormOptionSources.Languages">The language list</option>
+                        </select>
+                        <div class="help">A live list means adding a category never means re-editing this form.</div>
+                    </div>
+                    <div class="field">
+                        <label>Options, one per line</label>
+                        <textarea name="optionsText" rows="4" placeholder="value|Label"></textarea>
+                    </div>
+                    <div class="field">
+                        <label class="check">
+                            <input type="hidden" name="required" value="false" />
+                            <input type="checkbox" name="required" value="true" />
+                            <span>Required</span>
+                        </label>
+                    </div>
+                    <button class="btn primary" type="submit">Add field</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <header><h2>Live preview</h2></header>
+            <div class="body" style="max-height:760px;overflow:auto">
+                <partial name="_DynamicForm" model="Model.Preview" />
+            </div>
+        </div>
+    </div>
+</div>

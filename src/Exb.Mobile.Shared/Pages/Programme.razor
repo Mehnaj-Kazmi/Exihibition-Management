@@ -1,0 +1,143 @@
+@page "/programme"
+@layout Layout.ShellLayout
+@inject AppState State
+
+<div class="app-bar elevated">
+    <span class="app-bar-title">
+        <div class="t1">@(FixedHallName is null ? "Meetings & lectures" : $"What is on · {FixedHallName}")</div>
+    </span>
+    <button class="icon-btn" title="@(_agendaOnly ? "Show all sessions" : "My agenda only")" @onclick="ToggleAgenda">
+        <span class="material-symbols-outlined @(_agendaOnly ? "filled" : "")">bookmark@(_agendaOnly ? "" : "_border")</span>
+    </button>
+</div>
+
+<div class="screen-body">
+    <div class="field" style="margin-bottom:4px">
+        <input placeholder="Talk, speaker or room…" value="@_query" @oninput="OnQueryInput" />
+    </div>
+
+    @if (string.IsNullOrEmpty(_query) && !_agendaOnly && State.ProgrammeDates.Count > 1)
+    {
+        <div class="chip-row">
+            @foreach (var d in State.ProgrammeDates)
+            {
+                <button class="chip @(d == _selectedDate ? "active" : "")" @onclick="() => SelectDate(d)">@DayLabel(d)</button>
+            }
+        </div>
+    }
+
+    <div class="chip-row">
+        <button class="chip @(_kind is not null ? "active" : "")" @onclick="() => _kindSheetOpen = true">
+            <span class="material-symbols-outlined">expand_more</span>@(_kind ?? "Kind")
+        </button>
+        <button class="chip @(_categoryId is not null ? "active" : "")" @onclick="() => _catSheetOpen = true">
+            <span class="material-symbols-outlined">expand_more</span>@CategoryLabel
+        </button>
+        @if (_kind is not null || _categoryId is not null)
+        {
+            <button class="chip outline" @onclick="ClearKindCategory">Clear</button>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_error is not null)
+    {
+        <EmptyState Icon="cloud_off" Title="Could not load the programme" Detail="@_error" ActionLabel="Try again" OnAction="Load" />
+    }
+    else if (_agendaOnly && _sessions.Items.Count == 0)
+    {
+        <EmptyState Icon="bookmark_border" Title="Your agenda is empty" Detail="Open a talk and tap Save to agenda to keep it here." ActionLabel="Show all sessions" OnAction="ToggleAgenda" />
+    }
+    else if (!string.IsNullOrEmpty(_query) && _sessions.Items.Count == 0)
+    {
+        <EmptyState Icon="search_off" Title="@($"Nothing found for \"{_query}\"")" />
+    }
+    else if (_sessions.Items.Count == 0)
+    {
+        <EmptyState Icon="event_busy" Title="Nothing on the programme here" Detail="Try another day, or clear the filters." />
+    }
+    else
+    {
+        <ul class="tile-list divided">
+            @foreach (var s in _sessions.Items)
+            {
+                <li><SessionTile Session="s" ShowDate="@(_agendaOnly || !string.IsNullOrEmpty(_query))" /></li>
+            }
+        </ul>
+    }
+</div>
+
+<FilterSheet TValue="string?" @bind-IsOpen="_kindSheetOpen" Title="Kind" AnyLabel="Any kind"
+             Options="@_kindOptions" SelectedValue="_kind" OnSelected="OnKindSelected" />
+<FilterSheet TValue="int?" @bind-IsOpen="_catSheetOpen" Title="Category" AnyLabel="Any category"
+             Options="@_categoryOptions" SelectedValue="_categoryId" OnSelected="OnCategorySelected" />
+
+@code {
+    [Parameter, SupplyParameterFromQuery] public int? FixedHallId { get; set; }
+    [Parameter, SupplyParameterFromQuery] public string? FixedHallName { get; set; }
+
+    private string _query = "";
+    private System.Threading.Timer? _debounce;
+    private DateOnly _selectedDate;
+    private bool _agendaOnly;
+    private string? _kind;
+    private int? _categoryId;
+    private bool _kindSheetOpen, _catSheetOpen;
+
+    private Paged<Session> _sessions = Paged<Session>.Empty();
+    private bool _loading;
+    private string? _error;
+
+    private static readonly (string, string?)[] Kinds =
+    [
+        ("Lecture", "Lecture"), ("Meeting", "Meeting"), ("Workshop", "Workshop"),
+        ("Panel", "Panel"), ("Demo", "Demo"), ("Ceremony", "Ceremony"),
+    ];
+    private IReadOnlyList<(string, string?)> _kindOptions => Kinds;
+    private IReadOnlyList<(string, int?)> _categoryOptions => State.Categories.Select(c => ((string)c.Name, (int?)c.Id)).ToList();
+    private string CategoryLabel => State.Categories.FirstOrDefault(c => c.Id == _categoryId)?.Name is { } n ? (n.Length > 24 ? n[..24] + "…" : n) : "Category";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedDate = State.ProgrammeDates.Contains(State.Exhibition?.Today ?? default)
+            ? State.Exhibition!.Today
+            : State.ProgrammeDates.FirstOrDefault(DateOnly.FromDateTime(DateTime.Today));
+        await Load();
+    }
+
+    private string DayLabel(DateOnly d) => d == State.Exhibition?.Today ? "Today" : d.ToString("ddd d MMM");
+
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        StateHasChanged();
+        try
+        {
+            bool spanWholeShow = !string.IsNullOrEmpty(_query) || _agendaOnly;
+            _sessions = await State.Api.Sessions(
+                string.IsNullOrEmpty(_query) ? null : _query,
+                spanWholeShow ? null : _selectedDate,
+                _kind, FixedHallId, _categoryId, null, _agendaOnly, pageSize: 100);
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task SelectDate(DateOnly d) { _selectedDate = d; await Load(); }
+
+    private async Task ToggleAgenda() { _agendaOnly = !_agendaOnly; await Load(); }
+
+    private void OnQueryInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(_ => InvokeAsync(Load), null, 350, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task OnKindSelected(string? v) { _kind = v; await Load(); }
+    private async Task OnCategorySelected(int? v) { _categoryId = v; await Load(); }
+    private async Task ClearKindCategory() { _kind = null; _categoryId = null; await Load(); }
+}

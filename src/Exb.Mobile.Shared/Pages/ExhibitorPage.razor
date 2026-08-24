@@ -1,0 +1,182 @@
+@page "/exhibitor/{Id:int}"
+@inject AppState State
+@inject IPlatformServices Platform
+@inject NavigationManager Nav
+
+<AppBar Title="@(_detail?.Summary.CompanyName ?? "Exhibitor")" />
+
+<div class="screen-body">
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_error is not null || _detail is null)
+    {
+        <EmptyState Icon="storefront" Title="This exhibitor is not available" Detail="@(_error ?? "They may have withdrawn from the exhibition.")" ActionLabel="Try again" OnAction="Load" />
+    }
+    else
+    {
+        var ex = _detail.Summary;
+        <div style="font-size:21px;font-weight:700;margin:8px 0 6px">@ex.CompanyName</div>
+        <div class="chip-row" style="padding-top:0">
+            @if (!string.IsNullOrEmpty(ex.CategoryName)) { <span class="chip outline">@ex.CategoryName</span> }
+            @if (!string.IsNullOrEmpty(ex.SubCategoryName)) { <span class="chip outline">@ex.SubCategoryName</span> }
+            @if (!string.IsNullOrEmpty(ex.Country)) { <span class="chip outline"><span class="material-symbols-outlined">public</span>@ex.Country</span> }
+        </div>
+        <div style="color:var(--primary);font-weight:500;margin-bottom:10px">@ex.Location</div>
+
+        @if (!string.IsNullOrEmpty(ex.Summary))
+        {
+            <p style="font-size:14px;color:var(--on-surface-variant)">@ex.Summary</p>
+        }
+
+        <div class="card">
+            <div class="card-row">
+                <span class="material-symbols-outlined @(_detail.CatalogueRequested ? "filled" : "")" style="color:@(_detail.CatalogueRequested ? "var(--good)" : "var(--on-surface-variant)");font-size:28px">
+                    @(_detail.CatalogueRequested ? "check_circle" : "picture_as_pdf")
+                </span>
+                <div style="flex:1">
+                    <div style="font-weight:600">@(_detail.CatalogueRequested ? "On tonight's list" : "E-catalogue")</div>
+                    <div style="font-size:12.5px;color:var(--on-surface-variant)">@CatalogueSubtitle(ex)</div>
+                </div>
+                @if (!_detail.CatalogueRequested)
+                {
+                    <button class="btn btn-tonal" disabled="@_requesting" @onclick="RequestCatalogue">Add</button>
+                }
+            </div>
+        </div>
+        @if (_toast is not null)
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Good" Text="@_toast" />
+        }
+
+        @if (ex.Stands.Count > 0)
+        {
+            <div class="section-label">Where to find them</div>
+            <ul class="tile-list divided">
+                @foreach (var s in ex.Stands)
+                {
+                    <li class="tile">
+                        <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">place</span>
+                        <span class="tile-body"><div class="tile-title">Stand @s.StandNumber</div><div class="tile-sub">@s.HallName</div></span>
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_detail.Sessions.Count > 0)
+        {
+            <div class="section-label">Speaking at</div>
+            <ul class="tile-list divided">
+                @foreach (var s in _detail.Sessions)
+                {
+                    <li><SessionTile Session="s" ShowDate="true" /></li>
+                }
+            </ul>
+        }
+
+        <div class="section-label">Contact</div>
+        @if (string.IsNullOrEmpty(_detail.Website) && string.IsNullOrEmpty(_detail.Email) && string.IsNullOrEmpty(_detail.Phone))
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Info" Text="This exhibitor has not published contact details. Visit the stand, or request their e-catalogue above." />
+        }
+        else
+        {
+            <ul class="tile-list divided">
+                @if (!string.IsNullOrEmpty(_detail.Website))
+                {
+                    <li>
+                        <button class="tile" @onclick="OpenWebsite">
+                            <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">language</span>
+                            <span class="tile-body"><div class="tile-title">@_detail.Website</div></span>
+                        </button>
+                    </li>
+                }
+                @if (!string.IsNullOrEmpty(_detail.Email))
+                {
+                    <li>
+                        <button class="tile" @onclick="OpenEmail">
+                            <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">mail</span>
+                            <span class="tile-body"><div class="tile-title">@_detail.Email</div></span>
+                        </button>
+                    </li>
+                }
+                @if (!string.IsNullOrEmpty(_detail.Phone))
+                {
+                    <li>
+                        <button class="tile" @onclick="OpenPhone">
+                            <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">call</span>
+                            <span class="tile-body"><div class="tile-title">@_detail.Phone</div></span>
+                        </button>
+                    </li>
+                }
+                @if (!string.IsNullOrEmpty(_detail.ContactName))
+                {
+                    <li class="tile">
+                        <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">person</span>
+                        <span class="tile-body"><div class="tile-title">@_detail.ContactName</div><div class="tile-sub">Stand contact</div></span>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ExhibitorDetail? _detail;
+    private bool _loading, _requesting;
+    private string? _error, _toast;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true; _error = null; _toast = null;
+        StateHasChanged();
+        try { _detail = await State.Api.Exhibitor(Id); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private static string CatalogueSubtitle(Exhibitor ex) => ex.CatalogueCount > 0
+        ? $"{ex.CatalogueCount} document(s) available."
+        : "No documents uploaded yet — you can still register your interest.";
+
+    private async Task RequestCatalogue()
+    {
+        if (_detail is null || _detail.Summary.Stands.Count == 0) return;
+        _requesting = true;
+        StateHasChanged();
+        try
+        {
+            int count = await State.Api.RequestCatalogue(_detail.Summary.Stands[0].KioskId);
+            State.SetCatalogueCount(count);
+            _toast = $"{_detail.Summary.CompanyName} added to your list.";
+            // Flip locally rather than reload — mirrors the source app's immediate feedback.
+            var updated = _detail.Summary;
+            _detail = new ExhibitorDetail
+            {
+                Summary = updated, ContactName = _detail.ContactName, Email = _detail.Email,
+                Phone = _detail.Phone, Website = _detail.Website, Sessions = _detail.Sessions, CatalogueRequested = true,
+            };
+        }
+        catch (ApiException ex)
+        {
+            _toast = null;
+            _error = ex.Message;
+        }
+        finally { _requesting = false; }
+    }
+
+    private Task OpenWebsite() => Open(_detail!.Website!.StartsWith("http") ? _detail.Website! : $"https://{_detail.Website}");
+    private Task OpenEmail() => Open($"mailto:{_detail!.Email}");
+    private Task OpenPhone() => Open($"tel:{_detail!.Phone}");
+
+    private async Task Open(string url)
+    {
+        try { await Platform.OpenExternal(new Uri(url)); }
+        catch { _error = $"Could not open {url}"; }
+    }
+}

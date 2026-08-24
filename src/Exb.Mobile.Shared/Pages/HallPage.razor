@@ -1,0 +1,88 @@
+@page "/hall/{Id:int}"
+@inject AppState State
+@inject NavigationManager Nav
+
+<AppBar Title="@(_detail?.Summary.Name ?? "Hall")" />
+
+<div class="screen-body">
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_error is not null || _detail is null)
+    {
+        <EmptyState Icon="cloud_off" Title="Could not load this hall" Detail="@_error" ActionLabel="Try again" OnAction="Load" />
+    }
+    else
+    {
+        var hall = _detail.Summary;
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0 6px">
+            <Stat Label="exhibitors" Value="@hall.ExhibitorCount.ToString()" />
+            <Stat Label="stands" Value="@hall.StandCount.ToString()" />
+            <Stat Label="sessions" Value="@_detail.SessionCount.ToString()" />
+            <Stat Label="m² floor" Value="@Math.Round(hall.WidthM * hall.DepthM).ToString()" />
+        </div>
+
+        @if (!string.IsNullOrEmpty(hall.Notes))
+        {
+            <MessageBanner Kind="MessageBanner.BannerKind.Info" Text="@hall.Notes" />
+        }
+
+        <ul class="tile-list divided">
+            <li>
+                <button class="tile" @onclick="GoProgramme">
+                    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">event_note</span>
+                    <span class="tile-body"><div class="tile-title">What is on in this hall</div><div class="tile-sub">@(_detail.SessionCount) meetings and lectures</div></span>
+                    <span class="material-symbols-outlined chevron">chevron_right</span>
+                </button>
+            </li>
+        </ul>
+
+        <div class="section-label">Exhibitors</div>
+        <ul class="tile-list divided">
+            @foreach (var ex in _detail.Exhibitors)
+            {
+                <li><ExhibitorTile Exhibitor="ex" /></li>
+            }
+        </ul>
+
+        @if (hall.ExhibitorCount > _detail.Exhibitors.Count)
+        {
+            <div style="text-align:center;padding:10px">
+                <button class="btn btn-outlined" @onclick="SeeAll">See all @(hall.ExhibitorCount) exhibitors</button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private HallDetail? _detail;
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        StateHasChanged();
+        try { _detail = await State.Api.Hall(Id, pageSize: 12); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private void GoProgramme()
+    {
+        if (_detail is null) return;
+        Nav.NavigateTo($"/programme?FixedHallId={Id}&FixedHallName={Uri.EscapeDataString(_detail.Summary.Name)}");
+    }
+
+    private void SeeAll()
+    {
+        if (_detail is null) return;
+        Nav.NavigateTo($"/exhibitors?hallId={Id}&title={Uri.EscapeDataString(_detail.Summary.Name)}&subtitle={Uri.EscapeDataString($"{_detail.Summary.ExhibitorCount} exhibitors")}");
+    }
+}
+

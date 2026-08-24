@@ -1,0 +1,110 @@
+@page
+@model Exb.Web.Pages.Visitors.IndexModel
+@using Exb.Core.Interest
+@{
+    ViewData["Title"] = "Visitors";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Visitors</h1>
+        <p class="lead">@Model.Total registered, @Model.Badged carrying a badge, @Model.SeenToday seen on the floor today.</p>
+    </div>
+    <div class="actions">
+        <a class="btn primary" asp-page="/Visitors/Edit">Register a visitor</a>
+    </div>
+</div>
+
+@if (Model.Total > 0 && Model.Badged == 0)
+{
+    <div class="notice warn">
+        <strong>No badges assigned</strong>
+        Nobody has a badge EPC, so no stand visit can be attributed to a person. Assign one on each visitor's record.
+    </div>
+}
+
+<form method="get" class="toolbar">
+    <input type="search" name="q" value="@Model.Q" placeholder="Name, email, company, badge or code" />
+    <select name="filter">
+        <option value="">Everyone</option>
+        <option value="active" selected="@(Model.Filter == "active")">Seen today</option>
+        <option value="nobadge" selected="@(Model.Filter == "nobadge")">No badge assigned</option>
+        <option value="notracking" selected="@(Model.Filter == "notracking")">Tracking not consented</option>
+        <option value="noemail" selected="@(Model.Filter == "noemail")">Email not consented</option>
+    </select>
+    <button class="btn" type="submit">Filter</button>
+    <a class="btn" asp-page="/Visitors/Index">Clear</a>
+    @if (Model.NoTrackingConsent > 0)
+    {
+        <span class="small muted">@Model.NoTrackingConsent visitor(s) have declined tracking and are not measured.</span>
+    }
+</form>
+
+<div class="card">
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">No visitors match.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>Visitor</th><th>Badge</th><th>Consent</th>
+                    <th class="num">Stands today</th><th class="num">Interested</th>
+                    <th class="num">Time</th><th class="num">Scans</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>
+                            <a asp-page="/Visitors/Details" asp-route-id="@row.Id">@row.Name</a><br />
+                            <span class="small muted">@row.Email@(row.Company is null ? "" : " · " + row.Company)</span>
+                        </td>
+                        <td class="small mono">
+                            @if (string.IsNullOrEmpty(row.BadgeEpc))
+                            {
+                                <span class="badge warn">none</span>
+                            }
+                            else
+                            {
+                                @row.BadgeEpc
+                            }
+                            <br /><span class="muted">@row.RegistrationCode</span>
+                        </td>
+                        <td class="small">
+                            @if (row.ConsentTracking)
+                            {
+                                <span class="badge good">tracking</span>
+                            }
+                            else
+                            {
+                                <span class="badge bad">no tracking</span>
+                            }
+                            @if (row.ConsentEmail)
+                            {
+                                <span class="badge good">email</span>
+                            }
+                            else
+                            {
+                                <span class="badge">no email</span>
+                            }
+                        </td>
+                        <td class="num">@(row.StandsToday == 0 ? "—" : row.StandsToday.ToString())</td>
+                        <td class="num">@(row.InterestedToday == 0 ? "—" : row.InterestedToday.ToString())</td>
+                        <td class="num">@(row.DwellSecondsToday == 0 ? "—" : InterestFormatting.Duration(row.DwellSecondsToday))</td>
+                        <td class="num">@(row.ScansToday == 0 ? "—" : row.ScansToday.ToString())</td>
+                        <td class="nowrap">
+                            <a class="btn small" asp-page="/Visitors/Edit" asp-route-id="@row.Id">Edit</a>
+                            <a class="btn small" asp-page="/Visitors/Details" asp-route-id="@row.Id">Journey</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>

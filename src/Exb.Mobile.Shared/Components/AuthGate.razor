@@ -1,0 +1,48 @@
+@* Root auth-stage switch — mirrors the source app's _Root widget: the single
+   place that decides splash vs. login vs. the real app, and the single place
+   that reacts to a forced sign-out (a 401 from anywhere) by snapping back to
+   the login screen, regardless of how deep the visitor was navigated. *@
+@inject AppState State
+@inject NavigationManager Nav
+@implements IDisposable
+
+@if (State.Stage == AuthStage.Starting)
+{
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--surface)">
+        <div class="spinner dark" style="width:32px;height:32px;border-width:3px"></div>
+    </div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+        await State.RestoreAsync();
+    }
+
+    private void OnStateChanged()
+    {
+        bool onLogin = Nav.Uri.Contains("/login", StringComparison.OrdinalIgnoreCase);
+
+        if (State.Stage == AuthStage.SignedOut && !onLogin)
+        {
+            Nav.NavigateTo("/login", replace: true);
+        }
+        else if (State.Stage == AuthStage.SignedIn && onLogin)
+        {
+            // Mirrors the source app: signing in swaps the whole screen to the
+            // home shell with no explicit "go somewhere" call at the call site —
+            // the login screen itself never decides where to land.
+            Nav.NavigateTo("/search", replace: true);
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}

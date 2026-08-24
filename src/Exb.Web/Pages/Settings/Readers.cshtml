@@ -1,0 +1,117 @@
+@page
+@model Exb.Web.Pages.Settings.ReadersModel
+@using Exb.Core.Facility
+@using Exb.Core.Tracking
+@{
+    ViewData["Title"] = "Readers";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Readers</h1>
+        <p class="lead">
+            The system works out how many readers the floor needs and which antennas hang off each one.
+            All that is left is telling it where they are on the network — LLRP on TCP 5084 for Impinj,
+            Zebra and most other fixed UHF readers.
+        </p>
+    </div>
+    <div class="actions"><span class="badge @(Model.Configured > 0 ? "good" : "warn")">@Model.Configured configured</span></div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+
+<div class="notice @(Model.Configured > 0 ? "good" : "info")">
+    <strong>Currently running: @Model.DriverName</strong>
+    @if (Model.Configured == 0)
+    {
+        <text>
+            No reader addresses are set, so the simulator is driving the floor. Enter a host against any
+            reader below and the system switches to real hardware — the simulator is then ignored
+            entirely, so a cabled venue never gets synthetic visitors mixed into its live data.
+        </text>
+    }
+    else
+    {
+        <text>Real readers are in use. Antenna ports are numbered in the order listed against each reader.</text>
+    }
+</div>
+
+<div class="card">
+    <header>
+        <h2>Readers derived from the floor plan</h2>
+        <div class="actions"><span class="small muted">stand and aisle cable runs are kept on separate readers</span></div>
+    </header>
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">No readers yet — they appear once halls and stands exist.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr><th>Reader</th><th>Hall</th><th>Serves</th><th class="num">Ports used</th><th>Host</th><th class="num">Port</th><th>Enabled</th><th>State</th><th></th></tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <form method="post" asp-page-handler="Save" id="rdr-@row.ReaderCode"></form>
+                        <td class="mono">
+                            <input type="hidden" name="readerCode" value="@row.ReaderCode" form="rdr-@row.ReaderCode" />
+                            @row.ReaderCode
+                        </td>
+                        <td class="small">@row.HallName</td>
+                        <td class="small">@(row.Kind == AntennaKind.Kiosk ? "stand antennas" : "aisle grid")</td>
+                        <td class="num">@row.Antennas</td>
+                        <td><input type="text" name="host" value="@row.Host" placeholder="10.0.0.21" form="rdr-@row.ReaderCode" /></td>
+                        <td class="num"><input type="number" name="port" value="@row.Port" form="rdr-@row.ReaderCode" style="width:80px" /></td>
+                        <td class="center">
+                            <input type="hidden" name="isEnabled" value="false" form="rdr-@row.ReaderCode" />
+                            <input type="checkbox" name="isEnabled" value="true" checked="@row.IsEnabled" form="rdr-@row.ReaderCode" />
+                        </td>
+                        <td class="small">
+                            @{
+                                string cls = row.State switch
+                                {
+                                    ReaderState.Online => "good",
+                                    ReaderState.Error => "bad",
+                                    ReaderState.Connecting => "info",
+                                    _ => "",
+                                };
+                            }
+                            <span class="badge @cls" title="@row.Detail">@row.State.ToString().ToLowerInvariant()</span>
+                        </td>
+                        <td><button class="btn small primary" type="submit" form="rdr-@row.ReaderCode">Save</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <header><h2>Before commissioning</h2></header>
+    <div class="body small">
+        <p>
+            <strong>Tune the ROSpec.</strong> The driver sends a minimal inventory spec that reports EPC,
+            antenna id and peak RSSI. Transmit power, Gen2 session (S2 suits dense fixed installs) and
+            search mode are vendor-specific and should be set to match your site survey.
+        </p>
+        <p>
+            <strong>Calibrate the radio model.</strong> The defaults in
+            <a asp-page="/Settings/Tracking">Tracking &amp; dwell</a> are a starting point. Measure the
+            reference RSSI and path-loss exponent in a built hall, not an empty one — stands, people and
+            metal all raise the exponent well above free space, and every position downstream inherits it.
+        </p>
+        <p>
+            <strong>Check the port order.</strong> Antennas are assigned to ports in the order shown here.
+            If the cabling runs differently, either recable to match or the positions will be wrong in a
+            way that looks plausible.
+        </p>
+    </div>
+</div>

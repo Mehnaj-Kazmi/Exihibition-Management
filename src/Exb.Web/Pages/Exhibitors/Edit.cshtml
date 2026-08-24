@@ -1,0 +1,110 @@
+@page "/Exhibitors/Edit/{id:int?}"
+@model Exb.Web.Pages.Exhibitors.EditModel
+@{
+    ViewData["Title"] = Model.CompanyName;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@Model.CompanyName</h1>
+        <p class="lead">
+            This form is whatever your organisation arranged in
+            <a asp-page="/Settings/Forms">Settings &rsaquo; Forms</a>. Category and sub-category
+            are what decide which visitors hear about this stand in their evening report.
+        </p>
+    </div>
+    <div class="actions">
+        @if (Model.Id is not null)
+        {
+            <a class="btn" asp-page="/Exhibitors/Stand" asp-route-id="@Model.Id">Stand &amp; antennas</a>
+            <a class="btn" asp-page="/Exhibitors/Qr" asp-route-id="@Model.Id">QR sheet</a>
+        }
+        <a class="btn" asp-page="/Exhibitors/Index">Back</a>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="grid" style="grid-template-columns: minmax(0, 1fr) 340px">
+    <div class="card">
+        <div class="body">
+            <form method="post">
+                <partial name="_DynamicForm" model="Model.Render" />
+                <div style="display:flex;gap:8px">
+                    <button class="btn primary" type="submit">Save exhibitor</button>
+                    <a class="btn" asp-page="/Exhibitors/Index">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        @if (Model.Id is not null)
+        {
+            <div class="card">
+                <header><h2>E-catalogue files</h2></header>
+                <div class="body">
+                    <p class="small muted">
+                        These are what a visitor receives when they scan this stand's QR code.
+                        An exhibitor with no file still appears in the pack, as a generated stand
+                        details sheet.
+                    </p>
+
+                    @if (Model.Catalogues.Count > 0)
+                    {
+                        <table class="data" style="margin-bottom:12px">
+                            <tbody>
+                            @foreach (var asset in Model.Catalogues)
+                            {
+                                <tr>
+                                    <td>
+                                        @asset.FileName
+                                        <br /><span class="small muted">@((asset.SizeBytes / 1024.0 / 1024.0).ToString("0.0")) MB</span>
+                                    </td>
+                                    <td class="right">
+                                        <form method="post" asp-page-handler="RemoveFile" asp-route-id="@Model.Id">
+                                            <input type="hidden" name="assetId" value="@asset.Id" />
+                                            <button class="btn small danger" type="submit">Remove</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <p class="small muted">No files uploaded yet.</p>
+                    }
+
+                    <form method="post" asp-page-handler="Upload" asp-route-id="@Model.Id" enctype="multipart/form-data">
+                        <div class="field">
+                            <label for="file">Add a file</label>
+                            <input type="file" id="file" name="file" required />
+                            <div class="help">PDF, images, Office documents. Up to 80 MB.</div>
+                        </div>
+                        <button class="btn" type="submit">Upload</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card">
+                <header><h2>Next steps</h2></header>
+                <div class="body">
+                    <p class="small">Once saved you will be taken to the stand editor, where you set the
+                    stand's position and size. The size is what determines how many antennas the stand
+                    is issued, and therefore how well visitor interest can be measured on it.</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>

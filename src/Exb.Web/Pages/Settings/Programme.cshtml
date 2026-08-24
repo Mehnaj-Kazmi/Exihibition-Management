@@ -1,0 +1,152 @@
+@page
+@using Exb.Data.Entities
+@model Exb.Web.Pages.Settings.ProgrammeModel
+@{
+    ViewData["Title"] = "Programme";
+    var shown = Model.Date ?? Model.DefaultDate;
+    var kinds = Enum.GetValues<SessionKind>();
+}
+
+<div class="page-head">
+    <div>
+        <h1>Meetings &amp; lectures</h1>
+        <p class="lead">
+            The conference programme. Visitors search this in the mobile app alongside the stands, filtered
+            by the same categories, so a talk tagged <em>RFID &amp; Auto-ID</em> is found by everyone browsing
+            that category. Edits here reach phones at the next refresh.
+        </p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+@if (Model.Problem is not null)
+{
+    <div class="notice bad">@Model.Problem</div>
+}
+
+<div class="card">
+    <header>
+        <h2>@shown.ToString("dddd d MMMM")</h2>
+        <div class="nowrap">
+            @foreach (var day in Model.Days)
+            {
+                <a class="btn small @(day == shown ? "primary" : "")" asp-page="/Settings/Programme"
+                   asp-route-date="@day.ToString("yyyy-MM-dd")">@day.ToString("ddd d MMM")</a>
+            }
+        </div>
+    </header>
+    <div class="body tight">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="empty">Nothing on the programme for this day yet. Add the first session below.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>Time</th><th>Title</th><th>Kind</th><th>Speaker</th><th>Room</th>
+                    <th class="num">Seats</th><th class="num">Saved</th><th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td class="nowrap">@row.StartsAt.ToString("HH\\:mm")–@row.EndsAt.ToString("HH\\:mm")</td>
+                        <td>
+                            <strong>@row.Title</strong>
+                            <div class="muted small">@row.Code@(row.Language is not null ? $" · {row.Language}" : "")</div>
+                        </td>
+                        <td>@row.Kind</td>
+                        <td>
+                            @(row.SpeakerName ?? "—")
+                            @if (row.SpeakerOrganisation is not null)
+                            {
+                                <div class="muted small">@row.SpeakerOrganisation</div>
+                            }
+                        </td>
+                        <td>@(row.RoomName ?? "—")</td>
+                        <td class="num">@(row.Capacity > 0 ? row.Capacity.ToString() : "—")</td>
+                        <td class="num">@row.Bookmarks</td>
+                        <td class="nowrap">
+                            <a class="btn small" asp-page="/Settings/Programme" asp-route-date="@shown.ToString("yyyy-MM-dd")"
+                               asp-fragment="edit-@row.Id">Edit</a>
+                            <form method="post" asp-page-handler="Delete" style="display:inline"
+                                  onsubmit="return confirm('Remove @row.Title from the programme?');">
+                                <input type="hidden" name="id" value="@row.Id" />
+                                <button class="btn small danger" type="submit">Remove</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@foreach (var row in Model.Rows)
+{
+    <div class="card" id="edit-@row.Id">
+        <header><h2>Edit — @row.Title</h2></header>
+        <div class="body">
+            <form method="post" asp-page-handler="Save">
+                <input type="hidden" name="id" value="@row.Id" />
+                <partial name="_SessionFields" model="@(new Exb.Web.Models.SessionFormModel
+                         {
+                             Title = row.Title, Kind = row.Kind, SpeakerName = row.SpeakerName,
+                             SpeakerOrganisation = row.SpeakerOrganisation, EventDate = row.EventDate,
+                             StartsAt = row.StartsAt, EndsAt = row.EndsAt, HallId = row.HallId,
+                             RoomName = row.RoomName, CategoryId = row.CategoryId, SubCategoryId = row.SubCategoryId,
+                             Capacity = row.Capacity, RequiresBooking = row.RequiresBooking, Language = row.Language,
+                             Prefix = $"e{row.Id}",
+                             Halls = Model.Halls, Categories = Model.Categories, SubCategories = Model.SubCategories,
+                         })" />
+                <button class="btn primary" type="submit">Save changes</button>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <header><h2>Add a session</h2></header>
+    <div class="body">
+        <form method="post" asp-page-handler="Save">
+            <partial name="_SessionFields" model="@(new Exb.Web.Models.SessionFormModel
+                     {
+                         EventDate = shown, StartsAt = new TimeOnly(11, 0), EndsAt = new TimeOnly(11, 45),
+                         Capacity = 120, Language = "en", Prefix = "new",
+                         Halls = Model.Halls, Categories = Model.Categories, SubCategories = Model.SubCategories,
+                     })" />
+            <button class="btn primary" type="submit">Add to programme</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <header><h2>How this reaches visitors</h2></header>
+    <div class="body small">
+        <p>
+            <strong>Rooms are checked for clashes.</strong> Two sessions cannot overlap in the same room on the
+            same day — the save is refused rather than publishing a programme that cannot physically happen.
+        </p>
+        <p>
+            <strong>The hall is optional.</strong> Conference suites are usually outside the tracked halls, and
+            forcing them onto the floor plan would put invented coordinates into the facility model. Leave the
+            hall blank and give the room a name; the app shows the room either way.
+        </p>
+        <p>
+            <strong>Saving is not booking.</strong> Visitors can save a session to their agenda in the app, and
+            the count above shows how many have. It does not hold a seat, and the app says so — capacity here is
+            information, not a reservation system.
+        </p>
+        <p>
+            <strong>Removing retires.</strong> A removed session disappears from the app and from the agendas of
+            everyone who saved it, but the row stays so those agendas do not break.
+        </p>
+    </div>
+</div>

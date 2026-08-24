@@ -1,0 +1,20 @@
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    avoid_print: true
+
+    # Not enabled: unawaited_futures. A Flutter UI callback that kicks off a
+    # reload and returns is the normal shape — `setState(...); _load();` — and
+    # turning that into `unawaited(_load())` at every call site is noise that
+    # hides the handful of places where an un-awaited future is a real bug.

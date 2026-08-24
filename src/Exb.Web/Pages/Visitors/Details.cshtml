@@ -1,0 +1,229 @@
+@page "/Visitors/Details/{id:int}"
+@model Exb.Web.Pages.Visitors.DetailsModel
+@using Exb.Core.Interest
+@using Exb.Core.Dwell
+@{
+    ViewData["Title"] = Model.Visitor?.FullName ?? "Visitor";
+    var profile = Model.Profile;
+}
+
+<div class="page-head">
+    <div>
+        <h1>@Model.Visitor!.FullName</h1>
+        <p class="lead">
+            @Model.Visitor.Email@(Model.Visitor.Company is null ? "" : " · " + Model.Visitor.Company)
+            · badge <span class="mono">@(string.IsNullOrEmpty(Model.Visitor.BadgeEpc) ? "not assigned" : Model.Visitor.BadgeEpc)</span>
+        </p>
+    </div>
+    <div class="actions">
+        <a class="btn" asp-page="/Visitors/Edit" asp-route-id="@Model.Id">Edit</a>
+        @if (Model.Report is not null)
+        {
+            <a class="btn" asp-page="/Reports/View" asp-route-id="@Model.Report.Id">Their report</a>
+        }
+        <a class="btn" asp-page="/Visitors/Index">Back</a>
+    </div>
+</div>
+
+@if (!Model.Visitor.ConsentTracking)
+{
+    <div class="notice warn">
+        <strong>This visitor has not consented to tracking</strong>
+        No stand visits are recorded for them, and they receive no interest report.
+    </div>
+}
+
+@if (Model.AvailableDays.Count > 1)
+{
+    <div class="hall-tabs">
+        @foreach (var day in Model.AvailableDays)
+        {
+            <a class="btn @(day == Model.SelectedDay ? "primary" : "")"
+               asp-page="/Visitors/Details" asp-route-id="@Model.Id" asp-route-day="@day.ToString("yyyy-MM-dd")">
+                @day.ToString("ddd d MMM")
+            </a>
+        }
+    </div>
+}
+
+@if (profile is not null)
+{
+    <div class="grid c4" style="margin-bottom:18px">
+        <div class="tile">
+            <div class="value accent">@profile.Visited.Count</div>
+            <div class="label">stands visited</div>
+        </div>
+        <div class="tile">
+            <div class="value">@profile.TotalDwellText</div>
+            <div class="label">total time on stands</div>
+        </div>
+        <div class="tile">
+            <div class="value">@profile.Categories.Count</div>
+            <div class="label">categories of interest</div>
+        </div>
+        <div class="tile">
+            <div class="value">@Model.Scans.Count(s => s.Included)</div>
+            <div class="label">e-catalogues requested</div>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <header>
+        <h2>Stand-by-stand, in order</h2>
+        <div class="actions"><span class="small muted">@Model.SelectedDay.ToString("dddd d MMMM")</span></div>
+    </header>
+    <div class="body tight">
+        @if (Model.Timeline.Count == 0)
+        {
+            <div class="empty">No stand visits recorded for this day.</div>
+        }
+        else
+        {
+            <table class="data">
+                <thead>
+                <tr>
+                    <th>From</th><th>Stand</th><th>Exhibitor</th><th>Category</th>
+                    <th class="num">Time</th><th>Level</th><th class="num">Fixes</th><th class="num">Certainty</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var stop in Model.Timeline)
+                {
+                    <tr>
+                        <td class="mono small nowrap">@stop.StartedUtc.ToLocalTime().ToString("HH:mm:ss")</td>
+                        <td class="stand">@stop.StandNumber</td>
+                        <td>@stop.Exhibitor<br /><span class="small muted">@stop.Hall</span></td>
+                        <td class="small">@stop.Category</td>
+                        <td class="num">@InterestFormatting.Duration(stop.DwellSeconds)</td>
+                        <td>
+                            @{
+                                string cls = stop.Level switch
+                                {
+                                    Exb.Data.Entities.InterestLevel.Strong => "good",
+                                    Exb.Data.Entities.InterestLevel.Interested => "info",
+                                    Exb.Data.Entities.InterestLevel.Browsed => "",
+                                    _ => "",
+                                };
+                            }
+                            <span class="badge @cls">@InterestFormatting.LevelText((DwellLevel)stop.Level)</span>
+                        </td>
+                        <td class="num">@stop.Samples</td>
+                        <td class="num small">
+                            @stop.MeanConfidence.ToString("0.00")
+                            <br />
+                            <span class="muted" title="How much closer this stand was than the next nearest, on average">
+                                @stop.MeanMarginM.ToString("0.00") m
+                            </span>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+<div class="grid c2">
+    <div class="card">
+        <header><h2>Category interest</h2></header>
+        <div class="body tight">
+            @if (profile is null || profile.Categories.Count == 0)
+            {
+                <div class="empty">Nothing recorded yet.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead><tr><th>Category</th><th class="num">Stands</th><th class="num">Time</th><th class="num">Share</th></tr></thead>
+                    <tbody>
+                    @foreach (var category in profile.Categories)
+                    {
+                        <tr>
+                            <td>
+                                @category.CategoryName
+                                @if (category.SubCategories.Count > 0)
+                                {
+                                    <br />
+                                    <span class="small muted">@string.Join(", ", category.SubCategories.Select(s => s.SubCategoryName))</span>
+                                }
+                            </td>
+                            <td class="num">@category.StandCount</td>
+                            <td class="num">@category.DwellText</td>
+                            <td class="num">@category.SharePct.ToString("0.#")%</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <header>
+            <h2>E-catalogues requested</h2>
+            <div class="actions">
+                @if (Model.Delivery is not null && Model.Delivery.TransferUrl is not null)
+                {
+                    <a class="btn small" href="@Model.Delivery.TransferUrl" target="_blank" rel="noopener">Open pack</a>
+                }
+            </div>
+        </header>
+        <div class="body tight">
+            @if (Model.Scans.Count == 0)
+            {
+                <div class="empty">No QR codes scanned on this day.</div>
+            }
+            else
+            {
+                <table class="data">
+                    <thead><tr><th>Time</th><th>Stand</th><th>Exhibitor</th><th class="num">Files</th></tr></thead>
+                    <tbody>
+                    @foreach (var scan in Model.Scans)
+                    {
+                        <tr style="@(scan.Included ? "" : "opacity:.5")">
+                            <td class="mono small">@scan.RequestedUtc.ToLocalTime().ToString("HH:mm")</td>
+                            <td class="stand">@scan.StandNumber</td>
+                            <td>@scan.Exhibitor @(scan.Included ? "" : " (removed)")</td>
+                            <td class="num">@(scan.Files == 0 ? "sheet" : scan.Files.ToString())</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@if (profile is not null && profile.Missed.Count > 0)
+{
+    <div class="card">
+        <header>
+            <h2>Stands they missed</h2>
+            <div class="actions"><span class="small muted">what the evening report will tell them</span></div>
+        </header>
+        <div class="body tight">
+            <table class="data">
+                <thead><tr><th>Stand</th><th>Exhibitor</th><th>Category</th><th>Location</th><th>Why</th></tr></thead>
+                <tbody>
+                @foreach (var missed in profile.Missed.Take(15))
+                {
+                    <tr>
+                        <td class="stand">@missed.Kiosk.StandNumber</td>
+                        <td>@missed.Kiosk.ExhibitorName</td>
+                        <td class="small">
+                            @missed.Kiosk.CategoryName
+                            @if (missed.SubCategoryMatch)
+                            {
+                                <span class="badge info">exact match</span>
+                            }
+                        </td>
+                        <td class="small">@missed.Kiosk.HallName · zone @missed.Kiosk.Zone</td>
+                        <td class="small muted">@missed.Reason</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

@@ -1,0 +1,100 @@
+@page
+@model Exb.Web.Pages.Settings.FormsModel
+@using Exb.Core.Forms
+@using Exb.Data.Entities
+@{
+    ViewData["Title"] = "Forms";
+}
+
+<div class="page-head">
+    <div>
+        <h1>Forms</h1>
+        <p class="lead">
+            The visitor registration form and the exhibitor profile form are arranged here, and can be
+            different for every exhibition. Fields can be added, relabelled, reordered, moved between
+            sections or switched off.
+        </p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="notice good">@Model.Message</div>
+}
+
+<div class="notice info">
+    <strong>A few fields are wired to the system itself</strong>
+    A visitor's email is where their pack is sent; their badge EPC is what ties them to the floor; an
+    exhibitor's category decides which visitors hear about that stand. Those can be moved and relabelled
+    freely, but a layout that drops one of them is refused at save time rather than failing silently
+    that evening.
+</div>
+
+<div class="grid c2">
+    @foreach (var (entity, list, title, blurb) in new (FormEntityKind, IReadOnlyList<FormSchema>, string, string)[]
+    {
+        (FormEntityKind.Visitor, Model.VisitorForms, "Visitor registration", "Filled in at the desk when a badge is issued."),
+        (FormEntityKind.Exhibitor, Model.ExhibitorForms, "Exhibitor profile", "Filled in by the organiser or the exhibitor before the show."),
+    })
+    {
+        <div class="card">
+            <header>
+                <h2>@title</h2>
+                <div class="actions">
+                    <a class="btn small primary" asp-page="/Settings/FormEdit" asp-route-entity="@entity">Edit layout</a>
+                </div>
+            </header>
+            <div class="body tight">
+                <p class="small muted" style="padding:12px 14px 0;margin:0">@blurb</p>
+                @if (list.Count == 0)
+                {
+                    <div class="empty">No versions saved yet; the built-in layout is in use.</div>
+                }
+                else
+                {
+                    <table class="data">
+                        <thead><tr><th>Version</th><th>Name</th><th>Saved</th><th></th></tr></thead>
+                        <tbody>
+                        @foreach (var schema in list)
+                        {
+                            <tr>
+                                <td class="mono">v@schema.Version</td>
+                                <td>
+                                    @schema.Name
+                                    @if (schema.IsActive)
+                                    {
+                                        <span class="badge good">live</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(schema.Notes))
+                                    {
+                                        <br />
+                                        <span class="small muted">@schema.Notes</span>
+                                    }
+                                </td>
+                                <td class="small mono">@schema.CreatedUtc.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                                <td class="nowrap">
+                                    @if (!schema.IsActive)
+                                    {
+                                        <form method="post" asp-page-handler="Activate" style="display:inline">
+                                            <input type="hidden" name="id" value="@schema.Id" />
+                                            <button class="btn small" type="submit">Make live</button>
+                                        </form>
+                                    }
+                                    <a class="btn small" asp-page="/Settings/FormEdit" asp-route-entity="@entity" asp-route-schemaId="@schema.Id">Open</a>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                }
+                <div style="padding:12px 14px">
+                    <form method="post" asp-page-handler="Reset"
+                          onsubmit="return confirm('Restore the built-in layout as a new live version?');">
+                        <input type="hidden" name="entity" value="@entity" />
+                        <button class="btn small" type="submit">Restore built-in layout</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+</div>

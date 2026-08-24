@@ -1,0 +1,23 @@
+@* The single reusable "nothing to show" / "load failed" / "not permitted"
+   placeholder used across nearly every list screen. *@
+
+<div class="empty-state">
+    <span class="material-symbols-outlined">@Icon</span>
+    <div class="title">@Title</div>
+    @if (!string.IsNullOrEmpty(Detail))
+    {
+        <div class="detail">@Detail</div>
+    }
+    @if (!string.IsNullOrEmpty(ActionLabel) && OnAction.HasDelegate)
+    {
+        <button class="btn btn-outlined" @onclick="OnAction">@ActionLabel</button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "inbox";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public string? ActionLabel { get; set; }
+    [Parameter] public EventCallback OnAction { get; set; }
+}

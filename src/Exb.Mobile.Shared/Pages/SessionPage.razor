@@ -1,0 +1,115 @@
+@page "/session/{Id:int}"
+@inject AppState State
+@inject NavigationManager Nav
+
+<AppBar Title="@(_detail?.Summary.Kind ?? "Session")" />
+
+<div class="screen-body" style="padding-bottom:96px">
+    @if (_loading)
+    {
+        <div class="empty-state"><span class="spinner dark"></span></div>
+    }
+    else if (_error is not null || _detail is null)
+    {
+        <EmptyState Icon="event_busy" Title="This session is no longer on the programme" Detail="@_error" ActionLabel="Try again" OnAction="Load" />
+    }
+    else
+    {
+        var s = _detail.Summary;
+        var kind = SessionKindStyle.For(s.Kind);
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0">
+            <span class="session-kind" style="color:var(@kind.ColorVar);font-size:14px">
+                <span class="material-symbols-outlined">@kind.Icon</span>@s.Kind
+            </span>
+            @if (!string.IsNullOrEmpty(s.Language))
+            {
+                <span style="flex:1"></span>
+                <span class="chip outline" style="height:24px">@s.Language.ToUpperInvariant()</span>
+            }
+        </div>
+        <div style="font-size:21px;font-weight:700;margin-bottom:14px">@s.Title</div>
+
+        <DetailRow Icon="schedule" Title="@s.TimeRange" Subtitle="@($"{s.EventDate:dddd d MMMM} · {s.DurationMinutes} minutes")" />
+        <DetailRow Icon="place" Title="@(s.RoomName ?? "Location to be confirmed")" Subtitle="@s.HallName" />
+        @if (!string.IsNullOrEmpty(s.SpeakerName))
+        {
+            <DetailRow Icon="person" Title="@s.SpeakerName" Subtitle="@SpeakerSubtitle(s)" />
+        }
+        @if (!string.IsNullOrEmpty(s.CategoryName))
+        {
+            <DetailRow Icon="category" Title="@s.CategoryName" Subtitle="@s.SubCategoryName" />
+        }
+        @if (s.Capacity > 0)
+        {
+            <DetailRow Icon="event_seat" Title="@($"{s.Capacity} seats")" Subtitle="@(s.RequiresBooking ? "Register in advance with the organiser" : "First come, first served")" />
+        }
+
+        @if (!string.IsNullOrEmpty(_detail.Abstract))
+        {
+            <div class="section-label">About</div>
+            <p style="font-size:14px;color:var(--on-surface-variant)">@_detail.Abstract</p>
+        }
+
+        @if (s.ExhibitorId is { } exId)
+        {
+            <div class="card">
+                <button class="tile" style="padding:0" @onclick="() => Nav.NavigateTo(ExhibitorUrl(exId))">
+                    <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">storefront</span>
+                    <span class="tile-body"><div class="tile-title">@s.ExhibitorName</div><div class="tile-sub">Hosting this session</div></span>
+                    <span class="material-symbols-outlined chevron">chevron_right</span>
+                </button>
+            </div>
+        }
+
+        <MessageBanner Kind="MessageBanner.BannerKind.Info" Text="Saving a session puts it in your agenda in this app. It does not reserve a seat." />
+
+        <div style="position:fixed;right:16px;bottom:100px;z-index:15">
+            <button class="btn btn-filled" style="border-radius:28px;width:auto;padding:0 20px;box-shadow:0 4px 12px rgba(0,0,0,0.25)" @onclick="ToggleBookmark">
+                <span class="material-symbols-outlined @(s.Bookmarked ? "filled" : "")">bookmark@(s.Bookmarked ? "" : "_border")</span>
+                @(s.Bookmarked ? "In your agenda" : "Save to agenda")
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private SessionDetail? _detail;
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        StateHasChanged();
+        try { _detail = await State.Api.Session(Id); }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private static string ExhibitorUrl(int id) => $"/exhibitor/{id}";
+
+    private static string? SpeakerSubtitle(Session s)
+        => string.Join(" · ", new[] { s.SpeakerTitle, s.SpeakerOrganisation }.Where(x => !string.IsNullOrEmpty(x))) is { Length: > 0 } j ? j : null;
+
+    private async Task ToggleBookmark()
+    {
+        if (_detail is null) return;
+        bool wanted = !_detail.Summary.Bookmarked;
+        var previous = _detail.Summary;
+        _detail = new SessionDetail { Summary = previous.WithBookmarked(wanted), Abstract = _detail.Abstract };
+        StateHasChanged();
+        try
+        {
+            await State.Api.SetBookmarked(Id, wanted);
+        }
+        catch (ApiException ex)
+        {
+            _detail = new SessionDetail { Summary = previous, Abstract = _detail.Abstract };
+            _error = ex.Message;
+        }
+    }
+}

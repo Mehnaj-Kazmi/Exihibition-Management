@@ -1,0 +1,24 @@
+@using Exb.Data.Services
+@inject SettingsStore Settings
+@{
+    var exhibition = Settings.Current.Exhibition;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@ViewData["Title"] · @exhibition.Name</title>
+    <link rel="stylesheet" href="~/css/app.css" asp-append-version="true" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%23125ea8'/><circle cx='8' cy='8' r='2.6' fill='white'/></svg>" />
+</head>
+<body>
+<div class="phone">
+    @RenderBody()
+    <p class="small muted center" style="margin-top:28px">
+        @exhibition.Name @(string.IsNullOrWhiteSpace(exhibition.Venue) ? "" : "· " + exhibition.Venue)
+    </p>
+</div>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

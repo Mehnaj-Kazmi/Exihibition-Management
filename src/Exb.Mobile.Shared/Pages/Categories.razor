@@ -1,0 +1,89 @@
+@page "/categories"
+@inject AppState State
+@inject NavigationManager Nav
+
+<AppBar Title="Categories" />
+
+<div class="screen-body">
+    @if (State.Categories.Count == 0)
+    {
+        <EmptyState Icon="category" Title="No categories published yet" Detail="The organiser has not set up the product taxonomy for this exhibition." />
+    }
+    else
+    {
+        <ul class="tile-list divided">
+            @foreach (var c in State.Categories)
+            {
+                <li>
+                    <div class="tile" style="align-items:stretch;gap:12px;cursor:default">
+                        <span style="width:12px;border-radius:3px;background:@Swatch(c.Colour);flex:none;align-self:stretch"></span>
+                        <div style="flex:1;min-width:0">
+                            @if (c.Children.Count == 0)
+                            {
+                                <button class="tile" style="padding:6px 0" @onclick="() => GoLeafCategory(c)">
+                                    <span class="tile-body">
+                                        <div class="tile-title">@c.Name</div>
+                                        <div class="tile-sub">@(c.ExhibitorCount) exhibitors</div>
+                                    </span>
+                                    <span class="material-symbols-outlined chevron">chevron_right</span>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="tile" style="padding:6px 0" @onclick="() => Toggle(c.Id)">
+                                    <span class="tile-body">
+                                        <div class="tile-title">@c.Name</div>
+                                        <div class="tile-sub">@(c.ExhibitorCount) exhibitors · @(c.Children.Count) sub-categories</div>
+                                    </span>
+                                    <span class="material-symbols-outlined chevron">@(_expanded.Contains(c.Id) ? "expand_less" : "expand_more")</span>
+                                </button>
+
+                                @if (_expanded.Contains(c.Id))
+                                {
+                                    <button class="tile" style="padding:6px 0 6px 8px" @onclick="() => GoAllInCategory(c)">
+                                        <span class="tile-body"><div class="tile-title">All @c.Name</div></span>
+                                        <span class="material-symbols-outlined chevron">chevron_right</span>
+                                    </button>
+                                    @foreach (var sub in c.Children)
+                                    {
+                                        <button class="tile" style="padding:6px 0 6px 8px" @onclick="() => GoSubCategory(sub, c.Name)">
+                                            <span class="tile-body">
+                                                <div class="tile-title">@sub.Name</div>
+                                                <div class="tile-sub">@(sub.ExhibitorCount) exhibitors</div>
+                                            </span>
+                                            <span class="material-symbols-outlined chevron">chevron_right</span>
+                                        </button>
+                                    }
+                                }
+                            }
+                        </div>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    private readonly HashSet<int> _expanded = [];
+
+    private void Toggle(int id) { if (!_expanded.Add(id)) _expanded.Remove(id); }
+
+    private static string Swatch(string? hex)
+    {
+        if (string.IsNullOrEmpty(hex)) return "var(--primary)";
+        return hex.StartsWith('#') ? hex : $"#{hex}";
+    }
+
+    private void GoLeafCategory(Category c) => GoExhibitors(c.Id, null, c.Name, $"{c.ExhibitorCount} exhibitors");
+    private void GoAllInCategory(Category c) => GoExhibitors(c.Id, null, c.Name, $"All {c.Name}");
+    private void GoSubCategory(Category sub, string parentName) => GoExhibitors(null, sub.Id, sub.Name, parentName);
+
+    private void GoExhibitors(int? categoryId, int? subCategoryId, string title, string subtitle)
+    {
+        string url = $"/exhibitors?title={Uri.EscapeDataString(title)}&subtitle={Uri.EscapeDataString(subtitle)}";
+        if (categoryId is not null) url += $"&categoryId={categoryId}";
+        if (subCategoryId is not null) url += $"&subCategoryId={subCategoryId}";
+        Nav.NavigateTo(url);
+    }
+}

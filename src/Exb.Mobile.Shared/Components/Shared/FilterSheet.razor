@@ -1,0 +1,47 @@
+@* Generic single-select bottom-sheet picker — the Blazor equivalent of the
+   Flutter app's DraggableScrollableSheet + FilterOptionTile. Dismissing via
+   the backdrop simply never raises OnSelected, which is the same
+   "chose vs. dismissed" distinction the source drew explicitly with its
+   Choice<T> wrapper — no wrapper type needed here since the callback itself
+   only fires on an actual pick. *@
+@typeparam TValue
+
+@if (IsOpen)
+{
+    <div class="sheet-backdrop" @onclick="Close"></div>
+    <div class="sheet" role="dialog" aria-label="@Title">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">@Title</div>
+        <button class="option-row @(IsSelected(default) ? "selected" : "")" @onclick="() => Pick(default)">
+            <span class="material-symbols-outlined radio">@(IsSelected(default) ? "radio_button_checked" : "radio_button_unchecked")</span>
+            <span>@AnyLabel</span>
+        </button>
+        @foreach (var option in Options)
+        {
+            <button class="option-row @(IsSelected(option.Value) ? "selected" : "")" @onclick="() => Pick(option.Value)">
+                <span class="material-symbols-outlined radio">@(IsSelected(option.Value) ? "radio_button_checked" : "radio_button_unchecked")</span>
+                <span>@option.Label</span>
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string AnyLabel { get; set; } = "Any";
+    [Parameter, EditorRequired] public IReadOnlyList<(string Label, TValue Value)> Options { get; set; } = [];
+    [Parameter] public TValue? SelectedValue { get; set; }
+    [Parameter] public EventCallback<TValue?> OnSelected { get; set; }
+
+    private bool IsSelected(TValue? value) => EqualityComparer<TValue?>.Default.Equals(SelectedValue, value);
+
+    private async Task Pick(TValue? value)
+    {
+        await Close();
+        await OnSelected.InvokeAsync(value);
+    }
+
+    private Task Close() => IsOpenChanged.InvokeAsync(false);
+}

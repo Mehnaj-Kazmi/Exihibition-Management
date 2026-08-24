@@ -1,0 +1,250 @@
+@page "/search"
+@layout Layout.ShellLayout
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="app-bar elevated">
+    <span class="app-bar-title"><div class="t1">@(State.Exhibition?.Name ?? "Exhibition")</div></span>
+    <button class="icon-btn" title="Browse categories" @onclick='() => Nav.NavigateTo("/categories")'>
+        <span class="material-symbols-outlined">category</span>
+    </button>
+    <button class="icon-btn" title="Halls" @onclick='() => Nav.NavigateTo("/halls")'>
+        <span class="material-symbols-outlined">map</span>
+    </button>
+</div>
+
+<div class="screen-body">
+    <div class="field" style="margin-bottom:4px">
+        <div style="position:relative">
+            <input placeholder="Search exhibitors, stands, categories…" value="@_query" @oninput="OnQueryInput" />
+            @if (!string.IsNullOrEmpty(_query))
+            {
+                <button class="icon-btn" style="position:absolute;right:2px;top:2px;width:38px;height:38px" @onclick="ClearQuery">
+                    <span class="material-symbols-outlined" style="font-size:18px">close</span>
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (string.IsNullOrEmpty(_query))
+    {
+        <div class="chip-row">
+            <button class="chip @(_categoryId is not null ? "active" : "")" @onclick="() => _catSheetOpen = true">
+                <span class="material-symbols-outlined">expand_more</span>@CategoryLabel
+            </button>
+            <button class="chip @(_subCategoryId is not null ? "active" : "")" disabled="@(_categoryId is null)" @onclick="() => _subSheetOpen = true">
+                <span class="material-symbols-outlined">expand_more</span>@SubCategoryLabel
+            </button>
+            <button class="chip @(_hallId is not null ? "active" : "")" @onclick="() => _hallSheetOpen = true">
+                <span class="material-symbols-outlined">expand_more</span>@HallLabel
+            </button>
+            <button class="chip @(_country is not null ? "active" : "")" @onclick="() => _countrySheetOpen = true">
+                <span class="material-symbols-outlined">expand_more</span>@CountryLabel
+            </button>
+            @if (_categoryId is not null || _subCategoryId is not null || _hallId is not null || _country is not null)
+            {
+                <button class="chip outline" @onclick="ClearFilters">Clear</button>
+            }
+        </div>
+
+        @if (_loading)
+        {
+            <div class="empty-state"><span class="spinner dark"></span></div>
+        }
+        else if (_error is not null)
+        {
+            <EmptyState Icon="cloud_off" Title="Could not load" Detail="@_error" ActionLabel="Try again" OnAction="LoadBrowse" />
+        }
+        else if (_exhibitors.Items.Count == 0)
+        {
+            <EmptyState Icon="storefront" Title="No exhibitors here yet" />
+        }
+        else
+        {
+            <div style="font-size:13px;color:var(--on-surface-variant);padding:6px 4px">@(_exhibitors.Total) exhibitor(s)</div>
+            <ul class="tile-list divided">
+                @foreach (var ex in _exhibitors.Items)
+                {
+                    <li><ExhibitorTile Exhibitor="ex" /></li>
+                }
+            </ul>
+            @if (_loadingMore)
+            {
+                <div style="text-align:center;padding:16px"><span class="spinner dark"></span></div>
+            }
+            else if (_exhibitors.HasMore)
+            {
+                <div style="text-align:center;padding:12px"><button class="btn btn-outlined" @onclick="LoadMore">Load more</button></div>
+            }
+            else if (_exhibitors.Items.Count > 0)
+            {
+                <div style="text-align:center;padding:16px;color:var(--on-surface-variant);font-size:13px">That is all of them.</div>
+            }
+        }
+    }
+    else
+    {
+        @if (_searching)
+        {
+            <div class="empty-state"><span class="spinner dark"></span></div>
+        }
+        else if (_results is null || _results.IsEmpty)
+        {
+            <EmptyState Icon="search_off" Title="@($"Nothing found for \"{_query}\"")" Detail="Try a company name, a stand number like H1-014, a product type, or a speaker." />
+        }
+        else
+        {
+            @if (_results.Exhibitors.Count > 0)
+            {
+                <div class="section-label">Exhibitors @(_results.ExhibitorTotal > _results.Exhibitors.Count ? $"— showing {_results.Exhibitors.Count} of {_results.ExhibitorTotal}" : "")</div>
+                <ul class="tile-list divided">
+                    @foreach (var ex in _results.Exhibitors) { <li><ExhibitorTile Exhibitor="ex" /></li> }
+                </ul>
+            }
+            @if (_results.Sessions.Count > 0)
+            {
+                <div class="section-label">Meetings &amp; lectures @(_results.SessionTotal > _results.Sessions.Count ? $"— showing {_results.Sessions.Count} of {_results.SessionTotal}" : "")</div>
+                <ul class="tile-list divided">
+                    @foreach (var s in _results.Sessions) { <li><SessionTile Session="s" ShowDate="true" /></li> }
+                </ul>
+            }
+            @if (_results.Categories.Count > 0)
+            {
+                <div class="section-label">Categories</div>
+                <ul class="tile-list divided">
+                    @foreach (var c in _results.Categories)
+                    {
+                        <li>
+                            <button class="tile" @onclick="() => PickCategoryFromSearch(c)">
+                                <span class="material-symbols-outlined" style="color:var(--on-surface-variant)">category</span>
+                                <span class="tile-body">
+                                    <div class="tile-title">@c.Name</div>
+                                    <div class="tile-sub">@(c.ExhibitorCount) exhibitors</div>
+                                </span>
+                                <span class="material-symbols-outlined chevron">chevron_right</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+            @if (_results.Halls.Count > 0)
+            {
+                <div class="section-label">Halls</div>
+                <ul class="tile-list divided">
+                    @foreach (var h in _results.Halls) { <li><HallTile Hall="h" /></li> }
+                </ul>
+            }
+        }
+    }
+</div>
+
+<FilterSheet TValue="int?" @bind-IsOpen="_catSheetOpen" Title="Category"
+             Options="@_categoryOptions" SelectedValue="_categoryId" OnSelected="OnCategorySelected" />
+<FilterSheet TValue="int?" @bind-IsOpen="_subSheetOpen" Title="Sub-category"
+             Options="@_subCategoryOptions" SelectedValue="_subCategoryId" OnSelected="OnSubCategorySelected" />
+<FilterSheet TValue="int?" @bind-IsOpen="_hallSheetOpen" Title="Hall"
+             Options="@_hallOptions" SelectedValue="_hallId" OnSelected="OnHallSelected" />
+<FilterSheet TValue="string?" @bind-IsOpen="_countrySheetOpen" Title="Country"
+             Options="@_countryOptions" SelectedValue="_country" OnSelected="OnCountrySelected" />
+
+@code {
+    private string _query = "";
+    private System.Threading.Timer? _debounce;
+
+    private int? _categoryId, _subCategoryId, _hallId;
+    private string? _country;
+    private bool _catSheetOpen, _subSheetOpen, _hallSheetOpen, _countrySheetOpen;
+
+    private Paged<Exhibitor> _exhibitors = Paged<Exhibitor>.Empty();
+    private bool _loading, _loadingMore;
+    private string? _error;
+    private int _page = 1;
+
+    private SearchResults? _results;
+    private bool _searching;
+
+    protected override async Task OnInitializedAsync() => await LoadBrowse();
+
+    private IReadOnlyList<(string, int?)> _categoryOptions => State.Categories.Select(c => ((string)$"{c.Name} ({c.ExhibitorCount})", (int?)c.Id)).ToList();
+    private IReadOnlyList<(string, int?)> _subCategoryOptions => State.SubCategoriesOf(_categoryId).Select(c => ((string)$"{c.Name} ({c.ExhibitorCount})", (int?)c.Id)).ToList();
+    private IReadOnlyList<(string, int?)> _hallOptions => State.Halls.Select(h => ((string)h.Name, (int?)h.Id)).ToList();
+    private IReadOnlyList<(string, string?)> _countryOptions => State.Countries.Select(c => ((string)c, (string?)c)).ToList();
+
+    private string CategoryLabel => Truncate(State.Categories.FirstOrDefault(c => c.Id == _categoryId)?.Name, "Category");
+    private string SubCategoryLabel => Truncate(State.SubCategoriesOf(_categoryId).FirstOrDefault(c => c.Id == _subCategoryId)?.Name, "Sub-category");
+    private string HallLabel => Truncate(State.Halls.FirstOrDefault(h => h.Id == _hallId)?.Name, "Hall");
+    private string CountryLabel => Truncate(_country, "Country");
+
+    private static string Truncate(string? value, string fallback)
+    {
+        if (string.IsNullOrEmpty(value)) return fallback;
+        return value.Length > 28 ? value[..28] + "…" : value;
+    }
+
+    private async Task LoadBrowse()
+    {
+        _loading = true; _error = null; _page = 1;
+        StateHasChanged();
+        try
+        {
+            _exhibitors = await State.Api.Exhibitors(null, _categoryId, _subCategoryId, _hallId, _country, _page);
+        }
+        catch (ApiException ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadMore()
+    {
+        if (_loadingMore || !_exhibitors.HasMore) return;
+        _loadingMore = true;
+        try
+        {
+            _page++;
+            var next = await State.Api.Exhibitors(null, _categoryId, _subCategoryId, _hallId, _country, _page);
+            _exhibitors.Items.AddRange(next.Items);
+            _exhibitors = new Paged<Exhibitor> { Items = _exhibitors.Items, Total = next.Total, PageNumber = next.PageNumber, PageSize = next.PageSize, HasMore = next.HasMore };
+        }
+        catch (ApiException) { _page--; }
+        finally { _loadingMore = false; }
+    }
+
+    private void OnQueryInput(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(_ => InvokeAsync(RunSearchOrBrowse), null, 350, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task RunSearchOrBrowse()
+    {
+        if (string.IsNullOrEmpty(_query)) { await LoadBrowse(); StateHasChanged(); return; }
+        _searching = true;
+        StateHasChanged();
+        try { _results = await State.Api.SearchEverything(_query); }
+        catch (ApiException) { _results = null; }
+        finally { _searching = false; StateHasChanged(); }
+    }
+
+    private async Task ClearQuery()
+    {
+        _query = "";
+        await LoadBrowse();
+    }
+
+    private async Task PickCategoryFromSearch(Category c)
+    {
+        _query = "";
+        ClearFilterFields();
+        if (c.Children.Count > 0) _categoryId = c.Id; else _subCategoryId = c.Id;
+        await LoadBrowse();
+    }
+
+    private void ClearFilterFields() { _categoryId = null; _subCategoryId = null; _hallId = null; _country = null; }
+
+    private async Task ClearFilters() { ClearFilterFields(); await LoadBrowse(); }
+
+    private async Task OnCategorySelected(int? value) { _categoryId = value; _subCategoryId = null; await LoadBrowse(); }
+    private async Task OnSubCategorySelected(int? value) { _subCategoryId = value; await LoadBrowse(); }
+    private async Task OnHallSelected(int? value) { _hallId = value; await LoadBrowse(); }
+    private async Task OnCountrySelected(string? value) { _country = value; await LoadBrowse(); }
+}
