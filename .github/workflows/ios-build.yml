@@ -42,20 +42,26 @@ jobs:
           # Version numbers cannot be trusted here: this image carries an
           # /Applications/Xcode.app that reports 26.6 but is missing its macOS
           # platform SDK, so actool — the asset-catalog compiler every iOS
-          # build needs — is absent from it. Probe each Xcode newest-first and
-          # take the first one that can actually resolve actool.
+          # build needs — is absent from it, and other installs are missing
+          # ibtool (the storyboard compiler). Probe each Xcode newest-first and
+          # take the first that resolves every tool the build actually uses.
           PICK=""
           for x in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
             [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            if DEVELOPER_DIR="$x/Contents/Developer" xcrun --find actool >/dev/null 2>&1; then
-              echo "::notice::usable $x (Xcode $v) - actool found"
+            D="$x/Contents/Developer"
+            MISSING=""
+            for tool in actool ibtool; do
+              DEVELOPER_DIR="$D" xcrun --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
+            done
+            if [ -z "$MISSING" ]; then
+              echo "::notice::usable $x (Xcode $v)"
               [ -z "$PICK" ] && PICK="$x"
             else
-              echo "::notice::skipping $x (Xcode $v) - no actool"
+              echo "::notice::skipping $x (Xcode $v) - missing:$MISSING"
             fi
           done
-          if [ -z "$PICK" ]; then echo "::error::No Xcode with a working actool"; exit 1; fi
+          if [ -z "$PICK" ]; then echo "::error::No Xcode provides both actool and ibtool"; exit 1; fi
           echo "::notice::selected $PICK"
           echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
@@ -99,20 +105,26 @@ jobs:
           # Version numbers cannot be trusted here: this image carries an
           # /Applications/Xcode.app that reports 26.6 but is missing its macOS
           # platform SDK, so actool — the asset-catalog compiler every iOS
-          # build needs — is absent from it. Probe each Xcode newest-first and
-          # take the first one that can actually resolve actool.
+          # build needs — is absent from it, and other installs are missing
+          # ibtool (the storyboard compiler). Probe each Xcode newest-first and
+          # take the first that resolves every tool the build actually uses.
           PICK=""
           for x in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
             [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            if DEVELOPER_DIR="$x/Contents/Developer" xcrun --find actool >/dev/null 2>&1; then
-              echo "::notice::usable $x (Xcode $v) - actool found"
+            D="$x/Contents/Developer"
+            MISSING=""
+            for tool in actool ibtool; do
+              DEVELOPER_DIR="$D" xcrun --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
+            done
+            if [ -z "$MISSING" ]; then
+              echo "::notice::usable $x (Xcode $v)"
               [ -z "$PICK" ] && PICK="$x"
             else
-              echo "::notice::skipping $x (Xcode $v) - no actool"
+              echo "::notice::skipping $x (Xcode $v) - missing:$MISSING"
             fi
           done
-          if [ -z "$PICK" ]; then echo "::error::No Xcode with a working actool"; exit 1; fi
+          if [ -z "$PICK" ]; then echo "::error::No Xcode provides both actool and ibtool"; exit 1; fi
           echo "::notice::selected $PICK"
           echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
