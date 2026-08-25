@@ -52,7 +52,7 @@
                     <div class="tile-title">Record the stands I visit</div>
                     <div class="tile-sub">Your badge is located for headcount and safety either way. With this off, no visit is recorded and you get no interest report.</div>
                 </span>
-                <label class="switch">
+                <label class="switch @(v.ConsentTracking ? "on" : "") @(_busy ? "off-disabled" : "")">
                     <input type="checkbox" checked="@v.ConsentTracking" disabled="@_busy" @onchange="e => ToggleConsent(tracking: (bool)e.Value!)" />
                 </label>
             </li>
@@ -61,7 +61,7 @@
                     <div class="tile-title">Email me my e-catalogues and report</div>
                     <div class="tile-sub">With this off, nothing is emailed to you — including the pack of catalogues you scan today.</div>
                 </span>
-                <label class="switch">
+                <label class="switch @(v.ConsentEmail ? "on" : "") @(_busy ? "off-disabled" : "")">
                     <input type="checkbox" checked="@v.ConsentEmail" disabled="@_busy" @onchange="e => ToggleConsent(email: (bool)e.Value!)" />
                 </label>
             </li>

@@ -347,7 +347,10 @@ a { color: var(--primary); }
 /* ---------- Scan screen ---------- */
 
 .scan-camera {
-  position: relative; aspect-ratio: 3 / 4; background: #14161A;
+  /* min-height first: aspect-ratio needs Chrome 88 and these phones can be
+     running a much older web view (the test handset is on 79), where an
+     unsupported aspect-ratio would collapse the camera area to nothing. */
+  position: relative; min-height: 58vh; aspect-ratio: 3 / 4; background: #14161A;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
 .scan-camera .placeholder { color: #7C8A97; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13px; }
@@ -376,6 +379,12 @@ a { color: var(--primary); }
   border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.15s ease;
 }
-.switch:has(input:checked)::before { background: var(--primary); }
-.switch:has(input:checked)::after { transform: translateX(18px); background: var(--on-primary); }
-.switch:has(input:disabled) { opacity: 0.5; }
+/* Driven by an explicit .on class rather than :has(input:checked). The web
+   view on an older Android phone can be years behind desktop Chrome — the
+   test handset runs Chrome 79, and :has() only arrived in 105 — so the
+   selector silently never matched and every switch rendered as off however
+   the visitor's consent was actually set. On a consent control that is worse
+   than cosmetic: it misreports what the visitor agreed to. */
+.switch.on::before { background: var(--primary); }
+.switch.on::after { transform: translateX(18px); background: var(--on-primary); }
+.switch.off-disabled { opacity: 0.5; }

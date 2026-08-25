@@ -53,39 +53,58 @@ public sealed class AppState
         return Categories.FirstOrDefault(c => c.Id == categoryId)?.Children ?? [];
     }
 
+    /// <summary>
+    /// Restores the saved session at launch. Whatever happens, this must end
+    /// with the app on either the login screen or the home shell: the splash
+    /// it runs behind has no controls at all, so any escape from here strands
+    /// the visitor on a spinner with nothing to tap.
+    /// </summary>
     public async Task RestoreAsync()
     {
-        BaseUrl = await _platform.GetPreference(BaseUrlKey) ?? BaseUrl;
-        LastEmail = await _platform.GetPreference(EmailKey);
-        RebuildClient();
-
-        string? token = await _platform.GetSecureToken();
-        if (string.IsNullOrEmpty(token))
-        {
-            Stage = AuthStage.SignedOut;
-            Notify();
-            return;
-        }
-
-        Api.Token = token;
         try
         {
-            Visitor = await Api.Me();
-            await LoadExhibitionAsync();
-            Stage = AuthStage.SignedIn;
+            BaseUrl = await _platform.GetPreference(BaseUrlKey) ?? BaseUrl;
+            LastEmail = await _platform.GetPreference(EmailKey);
+            RebuildClient();
+
+            string? token = await _platform.GetSecureToken();
+            if (string.IsNullOrEmpty(token))
+            {
+                Stage = AuthStage.SignedOut;
+                Notify();
+                return;
+            }
+
+            Api.Token = token;
+            try
+            {
+                Visitor = await Api.Me();
+                await LoadExhibitionAsync();
+                Stage = AuthStage.SignedIn;
+            }
+            catch (ApiException ex)
+            {
+                if (ex.IsUnauthorised)
+                {
+                    await _platform.SetSecureToken(null);
+                }
+                else
+                {
+                    // Keep the token — a network hiccup at launch should not
+                    // permanently sign the visitor out; they can retry.
+                    SignedOutBecause = ex.Message;
+                }
+                Stage = AuthStage.SignedOut;
+            }
         }
-        catch (ApiException ex)
+        catch (Exception ex)
         {
-            if (ex.IsUnauthorised)
-            {
-                await _platform.SetSecureToken(null);
-            }
-            else
-            {
-                // Keep the token — a network hiccup at launch should not
-                // permanently sign the visitor out; they can retry.
-                SignedOutBecause = ex.Message;
-            }
+            // Anything the API client did not turn into an ApiException — a
+            // malformed stored address, unreadable secure storage, a response
+            // that would not deserialise — used to escape this method and
+            // leave the splash spinner on screen for good. Land on the login
+            // screen instead and say what went wrong.
+            SignedOutBecause = $"The app could not start its last session ({ex.GetType().Name}). Sign in again, or check the address below.";
             Stage = AuthStage.SignedOut;
         }
         Notify();
@@ -134,7 +153,14 @@ public sealed class AppState
 
     public async Task SignOutAsync()
     {
-        try { await Api.Logout(); } catch (ApiException) { /* best-effort */ }
+        // Sign out locally first and tell the server afterwards. Waiting on
+        // the network here means that when the venue wifi is slow — exactly
+        // when somebody is most likely to be giving up and signing out — the
+        // button appears to do nothing for the length of the HTTP timeout.
+        // Revoking the token server-side is worth attempting but is not worth
+        // making the visitor wait for, and the local token is gone either way.
+        var client = Api;
+
         await _platform.SetSecureToken(null);
         Visitor = null;
         Exhibition = null;
@@ -142,6 +168,11 @@ public sealed class AppState
         SignedOutBecause = null;
         Stage = AuthStage.SignedOut;
         Notify();
+
+        _ = Task.Run(async () =>
+        {
+            try { await client.Logout(); } catch { /* best-effort revocation */ }
+        });
     }
 
     private void OnServerRejectedToken()

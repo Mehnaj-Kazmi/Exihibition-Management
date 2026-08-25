@@ -6,7 +6,7 @@
 @inject NavigationManager Nav
 @implements IDisposable
 
-@if (State.Stage == AuthStage.Starting)
+@if (State.Stage == AuthStage.Starting && !_failedToStart)
 {
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--surface)">
         <div class="spinner dark" style="width:32px;height:32px;border-width:3px"></div>
@@ -23,8 +23,21 @@ else
     protected override async Task OnInitializedAsync()
     {
         State.Changed += OnStateChanged;
-        await State.RestoreAsync();
+        try
+        {
+            await State.RestoreAsync();
+        }
+        catch
+        {
+            // RestoreAsync handles its own failures, but this is the only
+            // component standing between the visitor and a splash screen with
+            // no controls on it, so it does not get to throw. Fall through to
+            // the login screen no matter what.
+            _failedToStart = true;
+        }
     }
+
+    private bool _failedToStart;
 
     private void OnStateChanged()
     {
