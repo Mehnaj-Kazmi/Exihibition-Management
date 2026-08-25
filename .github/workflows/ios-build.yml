@@ -51,8 +51,14 @@ jobs:
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
             D="$x/Contents/Developer"
             MISSING=""
-            for tool in actool ibtool; do
-              DEVELOPER_DIR="$D" xcrun --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
+            # The build resolves tools through the macOS SDK ("xcrun -sdk
+            # macosx"), and this image ships an Xcode 26.6.0 whose macOS SDK is
+            # absent — a bare "xcrun --find" still succeeds there, which is why
+            # earlier probes kept selecting it. Probe the same way the build
+            # does, and cover every tool it reaches for.
+            DEVELOPER_DIR="$D" xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1 || MISSING="$MISSING macosx-sdk"
+            for tool in actool ibtool clang install_name_tool strip lipo; do
+              DEVELOPER_DIR="$D" xcrun --sdk macosx --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
             done
             if [ -z "$MISSING" ]; then
               echo "::notice::usable $x (Xcode $v)"
@@ -114,8 +120,14 @@ jobs:
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
             D="$x/Contents/Developer"
             MISSING=""
-            for tool in actool ibtool; do
-              DEVELOPER_DIR="$D" xcrun --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
+            # The build resolves tools through the macOS SDK ("xcrun -sdk
+            # macosx"), and this image ships an Xcode 26.6.0 whose macOS SDK is
+            # absent — a bare "xcrun --find" still succeeds there, which is why
+            # earlier probes kept selecting it. Probe the same way the build
+            # does, and cover every tool it reaches for.
+            DEVELOPER_DIR="$D" xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1 || MISSING="$MISSING macosx-sdk"
+            for tool in actool ibtool clang install_name_tool strip lipo; do
+              DEVELOPER_DIR="$D" xcrun --sdk macosx --find "$tool" >/dev/null 2>&1 || MISSING="$MISSING $tool"
             done
             if [ -z "$MISSING" ]; then
               echo "::notice::usable $x (Xcode $v)"
