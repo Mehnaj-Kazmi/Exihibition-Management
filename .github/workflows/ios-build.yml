@@ -11,14 +11,12 @@
 
 name: Build iOS app
 
+# Manual only. GitHub emails on every failed run, and this build depends on
+# whichever Xcode the hosted Mac image happens to ship, so running it on each
+# push turns an image regression into a stream of failure mail. Start it from
+# the Actions tab when an .ipa is actually wanted.
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'src/Exb.Mobile/**'
-      - 'src/Exb.Mobile.Shared/**'
-      - '.github/workflows/ios-build.yml'
 
 env:
   # The Razor source generator emits CS8669 on its own generated files; left
