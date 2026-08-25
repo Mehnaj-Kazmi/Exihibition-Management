@@ -29,13 +29,23 @@ env:
 jobs:
   simulator:
     name: Simulator build (compile check)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Select the newest installed Xcode
+        run: |
+          # .NET 10's iOS toolchain requires a matching Xcode; the image's
+          # default selection can be older than what is installed. List what is
+          # available (useful if this ever breaks again) and pick the newest.
+          ls -d /Applications/Xcode*.app || true
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ]; then sudo xcode-select -s "$LATEST/Contents/Developer"; fi
+          xcodebuild -version
 
       - name: Install the MAUI iOS workload
         run: dotnet workload install maui-ios
@@ -62,13 +72,23 @@ jobs:
 
   unsigned-ipa:
     name: Unsigned .ipa (sideload to your own iPhone)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Select the newest installed Xcode
+        run: |
+          # .NET 10's iOS toolchain requires a matching Xcode; the image's
+          # default selection can be older than what is installed. List what is
+          # available (useful if this ever breaks again) and pick the newest.
+          ls -d /Applications/Xcode*.app || true
+          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$LATEST" ]; then sudo xcode-select -s "$LATEST/Contents/Developer"; fi
+          xcodebuild -version
 
       - name: Install the MAUI iOS workload
         run: dotnet workload install maui-ios
