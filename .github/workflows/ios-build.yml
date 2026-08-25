@@ -1,17 +1,13 @@
 # Builds the iPhone app on GitHub's Mac machines.
 #
-# Apple only permits iOS compilation on macOS, so no Windows PC can produce
-# an iPhone build. GitHub hosts real Apple hardware and runs this file on it —
+# Apple permits iOS compilation only on macOS, so no Windows PC can produce an
+# iPhone build. GitHub hosts real Apple hardware and runs this file on it —
 # free and unlimited on a public repository, which this one is.
 #
 # Two jobs:
 #   * simulator     — proves the iPhone app compiles. Needs no Apple account.
-#   * unsigned-ipa  — produces an .ipa you can install on YOUR OWN iPhone with
-#                     a free Apple ID using Sideloadly (a Windows tool). Also
-#                     needs no paid Apple account. See README-ios.md.
-#
-# When the company buys the $99/year Apple Developer Program, the same .ipa
-# can be properly signed for TestFlight and the App Store instead.
+#   * unsigned-ipa  — produces an .ipa installable on your OWN iPhone with a
+#                     free Apple ID via Sideloadly. See README-ios.md.
 
 name: Build iOS app
 
@@ -23,6 +19,12 @@ on:
       - 'src/Exb.Mobile/**'
       - 'src/Exb.Mobile.Shared/**'
       - '.github/workflows/ios-build.yml'
+
+env:
+  # The Razor source generator emits CS8669 on its own generated files; it is
+  # noise on every build and, left alone, it crowds the real error out of the
+  # annotation list that this workflow's failure reporting depends on.
+  NOWARN: CS8669
 
 jobs:
   simulator:
@@ -40,11 +42,23 @@ jobs:
 
       - name: Build for the iOS Simulator
         run: |
+          set +e
           dotnet build src/Exb.Mobile/Exb.Mobile.csproj \
             -f net10.0-ios \
             -c Release \
             -p:TargetFrameworksOverride=net10.0-ios \
-            -p:RuntimeIdentifier=iossimulator-arm64
+            -p:RuntimeIdentifier=iossimulator-arm64 \
+            -p:NoWarn=$NOWARN \
+            --nologo 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            # Re-emit the real compiler/MSBuild errors as GitHub annotations so
+            # the cause is visible without opening the raw log.
+            grep -aE "error [A-Z]+[0-9]+|error :|error:" build.log | sort -u | head -8 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            echo "::error::iOS simulator build failed with exit code $code"
+          fi
+          exit $code
 
   unsigned-ipa:
     name: Unsigned .ipa (sideload to your own iPhone)
@@ -59,11 +73,12 @@ jobs:
       - name: Install the MAUI iOS workload
         run: dotnet workload install maui-ios
 
-      # Building for a real device (ios-arm64) but with signing switched off.
+      # Builds for a real device (ios-arm64) with signing switched off.
       # Sideloadly re-signs it afterwards with the tester's own free Apple ID,
       # which is what makes the no-paid-account route work.
       - name: Build unsigned for device
         run: |
+          set +e
           dotnet build src/Exb.Mobile/Exb.Mobile.csproj \
             -f net10.0-ios \
             -c Release \
@@ -73,15 +88,24 @@ jobs:
             -p:CodesignProvision="" \
             -p:EnableCodeSigning=false \
             -p:_RequireCodeSigning=false \
-            -p:DisableCodesignVerification=true
+            -p:DisableCodesignVerification=true \
+            -p:NoWarn=$NOWARN \
+            --nologo 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ $code -ne 0 ]; then
+            grep -aE "error [A-Z]+[0-9]+|error :|error:" build.log | sort -u | head -8 \
+              | while IFS= read -r line; do echo "::error::$line"; done
+            echo "::error::iOS device build failed with exit code $code"
+          fi
+          exit $code
 
-      # An .ipa is simply a zip containing a Payload/ folder with the .app
-      # inside, so we can assemble one by hand without Xcode's archive step.
+      # An .ipa is a zip containing a Payload/ folder with the .app inside, so
+      # one can be assembled by hand without Xcode's archive step.
       - name: Package as .ipa
         run: |
-          APP=$(find src/Exb.Mobile/bin/Release/net10.0-ios/ios-arm64 -maxdepth 2 -name "*.app" -type d | head -1)
+          APP=$(find src/Exb.Mobile/bin/Release/net10.0-ios -maxdepth 3 -name "*.app" -type d | head -1)
           if [ -z "$APP" ]; then
-            echo "::error::No .app bundle was produced — check the build step above."
+            echo "::error::No .app bundle was produced."
             find src/Exb.Mobile/bin/Release/net10.0-ios -maxdepth 3 -type d
             exit 1
           fi
