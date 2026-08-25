@@ -37,30 +37,29 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select a real, installed Xcode
+      - name: Select an Xcode whose actool works
         run: |
-          # The image sets DEVELOPER_DIR to an Xcode that is not present on
-          # disk, and DEVELOPER_DIR silently overrides `xcode-select`, so the
-          # toolchain went looking for actool inside a directory that does not
-          # exist ("unable to find utility actool"). Pick the newest Xcode that
-          # genuinely is installed and export DEVELOPER_DIR for later steps.
-          echo "::notice::inherited DEVELOPER_DIR=${DEVELOPER_DIR:-unset}"
-          PICK=""; BEST=""
-          for x in /Applications/Xcode*.app; do
+          # Version numbers cannot be trusted here: this image carries an
+          # /Applications/Xcode.app that reports 26.6 but is missing its macOS
+          # platform SDK, so actool — the asset-catalog compiler every iOS
+          # build needs — is absent from it. Probe each Xcode newest-first and
+          # take the first one that can actually resolve actool.
+          PICK=""
+          for x in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
             [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            [ -n "$v" ] || continue
-            echo "::notice::installed $x = Xcode $v"
-            if [ -z "$BEST" ] || [ "$(printf '%s\n%s\n' "$BEST" "$v" | sort -V | tail -1)" = "$v" ]; then
-              BEST="$v"; PICK="$x"
+            if DEVELOPER_DIR="$x/Contents/Developer" xcrun --find actool >/dev/null 2>&1; then
+              echo "::notice::usable $x (Xcode $v) - actool found"
+              [ -z "$PICK" ] && PICK="$x"
+            else
+              echo "::notice::skipping $x (Xcode $v) - no actool"
             fi
           done
-          if [ -z "$PICK" ]; then echo "::error::No usable Xcode found"; exit 1; fi
-          echo "::notice::selected $PICK (Xcode $BEST)"
+          if [ -z "$PICK" ]; then echo "::error::No Xcode with a working actool"; exit 1; fi
+          echo "::notice::selected $PICK"
           echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
-
       - name: Install the MAUI iOS workload
         run: |
           dotnet workload install maui-ios
@@ -95,24 +94,29 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select a real, installed Xcode
+      - name: Select an Xcode whose actool works
         run: |
-          echo "::notice::inherited DEVELOPER_DIR=${DEVELOPER_DIR:-unset}"
-          PICK=""; BEST=""
-          for x in /Applications/Xcode*.app; do
+          # Version numbers cannot be trusted here: this image carries an
+          # /Applications/Xcode.app that reports 26.6 but is missing its macOS
+          # platform SDK, so actool — the asset-catalog compiler every iOS
+          # build needs — is absent from it. Probe each Xcode newest-first and
+          # take the first one that can actually resolve actool.
+          PICK=""
+          for x in $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
             [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            [ -n "$v" ] || continue
-            if [ -z "$BEST" ] || [ "$(printf '%s\n%s\n' "$BEST" "$v" | sort -V | tail -1)" = "$v" ]; then
-              BEST="$v"; PICK="$x"
+            if DEVELOPER_DIR="$x/Contents/Developer" xcrun --find actool >/dev/null 2>&1; then
+              echo "::notice::usable $x (Xcode $v) - actool found"
+              [ -z "$PICK" ] && PICK="$x"
+            else
+              echo "::notice::skipping $x (Xcode $v) - no actool"
             fi
           done
-          if [ -z "$PICK" ]; then echo "::error::No usable Xcode found"; exit 1; fi
-          echo "::notice::selected $PICK (Xcode $BEST)"
+          if [ -z "$PICK" ]; then echo "::error::No Xcode with a working actool"; exit 1; fi
+          echo "::notice::selected $PICK"
           echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
-
       - name: Install the MAUI iOS workload
         run: dotnet workload install maui-ios
 
