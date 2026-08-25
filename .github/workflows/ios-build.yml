@@ -21,9 +21,9 @@ on:
       - '.github/workflows/ios-build.yml'
 
 env:
-  # The Razor source generator emits CS8669 on its own generated files; it is
-  # noise on every build and, left alone, it crowds the real error out of the
-  # annotation list that this workflow's failure reporting depends on.
+  # The Razor source generator emits CS8669 on its own generated files; left
+  # alone it crowds the real error out of the annotation list that this
+  # workflow's failure reporting depends on.
   NOWARN: CS8669
 
 jobs:
@@ -37,35 +37,35 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select an Xcode matching the .NET iOS toolchain
+      - name: Select a real, installed Xcode
         run: |
-          # Version skew cuts both ways: too old and the SDK refuses to build,
-          # too new and actool emits an asset manifest the SDK cannot parse
-          # (it fails with "actool exited with code 72"). .NET for iOS 26.5
-          # wants Xcode 26.6, so prefer that exactly, then any 26.x, and only
-          # fall back to the newest available. The notices below record what
-          # the image actually had, so a future mismatch is diagnosable.
+          # The image sets DEVELOPER_DIR to an Xcode that is not present on
+          # disk, and DEVELOPER_DIR silently overrides `xcode-select`, so the
+          # toolchain went looking for actool inside a directory that does not
+          # exist ("unable to find utility actool"). Pick the newest Xcode that
+          # genuinely is installed and export DEVELOPER_DIR for later steps.
+          echo "::notice::inherited DEVELOPER_DIR=${DEVELOPER_DIR:-unset}"
+          PICK=""; BEST=""
           for x in /Applications/Xcode*.app; do
-            [ -d "$x" ] || continue
+            [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            echo "::notice::available $x = Xcode $v"
+            [ -n "$v" ] || continue
+            echo "::notice::installed $x = Xcode $v"
+            if [ -z "$BEST" ] || [ "$(printf '%s\n%s\n' "$BEST" "$v" | sort -V | tail -1)" = "$v" ]; then
+              BEST="$v"; PICK="$x"
+            fi
           done
-          PICK=""
-          for want in 26.6 26.5 26.; do
-            for x in /Applications/Xcode*.app; do
-              [ -d "$x" ] || continue
-              v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-              case "$v" in "$want"*) PICK="$x"; break;; esac
-            done
-            [ -n "$PICK" ] && break
-          done
-          [ -z "$PICK" ] && PICK=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "::notice::selected $PICK"
+          if [ -z "$PICK" ]; then echo "::error::No usable Xcode found"; exit 1; fi
+          echo "::notice::selected $PICK (Xcode $BEST)"
+          echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
 
       - name: Install the MAUI iOS workload
-        run: dotnet workload install maui-ios
+        run: |
+          dotnet workload install maui-ios
+          echo "::notice::dotnet SDK $(dotnet --version)"
+          echo "::notice::DEVELOPER_DIR is now ${DEVELOPER_DIR:-unset}"
 
       - name: Build for the iOS Simulator
         run: |
@@ -79,8 +79,6 @@ jobs:
             --nologo 2>&1 | tee build.log
           code=${PIPESTATUS[0]}
           if [ $code -ne 0 ]; then
-            # Re-emit the real compiler/MSBuild errors as GitHub annotations so
-            # the cause is visible without opening the raw log.
             grep -aE "error [A-Z]+[0-9]+|error :|error:" build.log | sort -u | head -8 \
               | while IFS= read -r line; do echo "::error::$line"; done
             echo "::error::iOS simulator build failed with exit code $code"
@@ -97,30 +95,21 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select an Xcode matching the .NET iOS toolchain
+      - name: Select a real, installed Xcode
         run: |
-          # Version skew cuts both ways: too old and the SDK refuses to build,
-          # too new and actool emits an asset manifest the SDK cannot parse
-          # (it fails with "actool exited with code 72"). .NET for iOS 26.5
-          # wants Xcode 26.6, so prefer that exactly, then any 26.x, and only
-          # fall back to the newest available. The notices below record what
-          # the image actually had, so a future mismatch is diagnosable.
+          echo "::notice::inherited DEVELOPER_DIR=${DEVELOPER_DIR:-unset}"
+          PICK=""; BEST=""
           for x in /Applications/Xcode*.app; do
-            [ -d "$x" ] || continue
+            [ -x "$x/Contents/Developer/usr/bin/xcodebuild" ] || continue
             v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-            echo "::notice::available $x = Xcode $v"
+            [ -n "$v" ] || continue
+            if [ -z "$BEST" ] || [ "$(printf '%s\n%s\n' "$BEST" "$v" | sort -V | tail -1)" = "$v" ]; then
+              BEST="$v"; PICK="$x"
+            fi
           done
-          PICK=""
-          for want in 26.6 26.5 26.; do
-            for x in /Applications/Xcode*.app; do
-              [ -d "$x" ] || continue
-              v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
-              case "$v" in "$want"*) PICK="$x"; break;; esac
-            done
-            [ -n "$PICK" ] && break
-          done
-          [ -z "$PICK" ] && PICK=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          echo "::notice::selected $PICK"
+          if [ -z "$PICK" ]; then echo "::error::No usable Xcode found"; exit 1; fi
+          echo "::notice::selected $PICK (Xcode $BEST)"
+          echo "DEVELOPER_DIR=$PICK/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
 
