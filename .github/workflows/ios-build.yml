@@ -1,0 +1,97 @@
+# Builds the iPhone app on GitHub's Mac machines.
+#
+# Apple only permits iOS compilation on macOS, so no Windows PC can produce
+# an iPhone build. GitHub hosts real Apple hardware and runs this file on it —
+# free and unlimited on a public repository, which this one is.
+#
+# Two jobs:
+#   * simulator     — proves the iPhone app compiles. Needs no Apple account.
+#   * unsigned-ipa  — produces an .ipa you can install on YOUR OWN iPhone with
+#                     a free Apple ID using Sideloadly (a Windows tool). Also
+#                     needs no paid Apple account. See README-ios.md.
+#
+# When the company buys the $99/year Apple Developer Program, the same .ipa
+# can be properly signed for TestFlight and the App Store instead.
+
+name: Build iOS app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/Exb.Mobile/**'
+      - 'src/Exb.Mobile.Shared/**'
+      - '.github/workflows/ios-build.yml'
+
+jobs:
+  simulator:
+    name: Simulator build (compile check)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install the MAUI iOS workload
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      - name: Build for the iOS Simulator
+        run: |
+          dotnet build src/Exb.Mobile/Exb.Mobile.csproj \
+            -f net10.0-ios \
+            -c Release \
+            -p:RuntimeIdentifier=iossimulator-arm64
+
+  unsigned-ipa:
+    name: Unsigned .ipa (sideload to your own iPhone)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install the MAUI iOS workload
+        run: dotnet workload install maui-ios --skip-manifest-update
+
+      # Building for a real device (ios-arm64) but with signing switched off.
+      # Sideloadly re-signs it afterwards with the tester's own free Apple ID,
+      # which is what makes the no-paid-account route work.
+      - name: Build unsigned for device
+        run: |
+          dotnet build src/Exb.Mobile/Exb.Mobile.csproj \
+            -f net10.0-ios \
+            -c Release \
+            -p:RuntimeIdentifier=ios-arm64 \
+            -p:CodesignKey="" \
+            -p:CodesignProvision="" \
+            -p:EnableCodeSigning=false \
+            -p:_RequireCodeSigning=false \
+            -p:DisableCodesignVerification=true
+
+      # An .ipa is simply a zip containing a Payload/ folder with the .app
+      # inside, so we can assemble one by hand without Xcode's archive step.
+      - name: Package as .ipa
+        run: |
+          APP=$(find src/Exb.Mobile/bin/Release/net10.0-ios/ios-arm64 -maxdepth 2 -name "*.app" -type d | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::No .app bundle was produced — check the build step above."
+            find src/Exb.Mobile/bin/Release/net10.0-ios -maxdepth 3 -type d
+            exit 1
+          fi
+          echo "Found app bundle: $APP"
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          cd out && zip -qry ExhibitionCompanion.ipa Payload
+          ls -lh ExhibitionCompanion.ipa
+
+      - name: Upload the .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExhibitionCompanion-iOS-unsigned-ipa
+          path: out/ExhibitionCompanion.ipa
+          if-no-files-found: error
