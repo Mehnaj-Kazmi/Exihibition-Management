@@ -37,14 +37,31 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select the newest installed Xcode
+      - name: Select an Xcode matching the .NET iOS toolchain
         run: |
-          # .NET 10's iOS toolchain requires a matching Xcode; the image's
-          # default selection can be older than what is installed. List what is
-          # available (useful if this ever breaks again) and pick the newest.
-          ls -d /Applications/Xcode*.app || true
-          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          if [ -n "$LATEST" ]; then sudo xcode-select -s "$LATEST/Contents/Developer"; fi
+          # Version skew cuts both ways: too old and the SDK refuses to build,
+          # too new and actool emits an asset manifest the SDK cannot parse
+          # (it fails with "actool exited with code 72"). .NET for iOS 26.5
+          # wants Xcode 26.6, so prefer that exactly, then any 26.x, and only
+          # fall back to the newest available. The notices below record what
+          # the image actually had, so a future mismatch is diagnosable.
+          for x in /Applications/Xcode*.app; do
+            [ -d "$x" ] || continue
+            v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+            echo "::notice::available $x = Xcode $v"
+          done
+          PICK=""
+          for want in 26.6 26.5 26.; do
+            for x in /Applications/Xcode*.app; do
+              [ -d "$x" ] || continue
+              v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+              case "$v" in "$want"*) PICK="$x"; break;; esac
+            done
+            [ -n "$PICK" ] && break
+          done
+          [ -z "$PICK" ] && PICK=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "::notice::selected $PICK"
+          sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
 
       - name: Install the MAUI iOS workload
@@ -80,14 +97,31 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Select the newest installed Xcode
+      - name: Select an Xcode matching the .NET iOS toolchain
         run: |
-          # .NET 10's iOS toolchain requires a matching Xcode; the image's
-          # default selection can be older than what is installed. List what is
-          # available (useful if this ever breaks again) and pick the newest.
-          ls -d /Applications/Xcode*.app || true
-          LATEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          if [ -n "$LATEST" ]; then sudo xcode-select -s "$LATEST/Contents/Developer"; fi
+          # Version skew cuts both ways: too old and the SDK refuses to build,
+          # too new and actool emits an asset manifest the SDK cannot parse
+          # (it fails with "actool exited with code 72"). .NET for iOS 26.5
+          # wants Xcode 26.6, so prefer that exactly, then any 26.x, and only
+          # fall back to the newest available. The notices below record what
+          # the image actually had, so a future mismatch is diagnosable.
+          for x in /Applications/Xcode*.app; do
+            [ -d "$x" ] || continue
+            v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+            echo "::notice::available $x = Xcode $v"
+          done
+          PICK=""
+          for want in 26.6 26.5 26.; do
+            for x in /Applications/Xcode*.app; do
+              [ -d "$x" ] || continue
+              v=$("$x/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | head -1 | awk '{print $2}')
+              case "$v" in "$want"*) PICK="$x"; break;; esac
+            done
+            [ -n "$PICK" ] && break
+          done
+          [ -z "$PICK" ] && PICK=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "::notice::selected $PICK"
+          sudo xcode-select -s "$PICK/Contents/Developer"
           xcodebuild -version
 
       - name: Install the MAUI iOS workload
