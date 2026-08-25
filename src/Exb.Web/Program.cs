@@ -24,7 +24,17 @@ string connectionString =
 builder.Services.AddDbContextFactory<ExhibitionDbContext>(options =>
     options.UseSqlServer(connectionString, sql =>
     {
-        sql.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
+        // -2 is the client-side timeout SQL Server raises when it accepts a
+        // connection but is too busy to finish establishing it, and 1205 is a
+        // deadlock victim. Neither is in the provider's default transient list,
+        // yet both are exactly the sort of momentary pressure a show day
+        // produces once tracking has written a few hundred thousand visits.
+        // Left unretried they surface to a visitor as "cannot reach the
+        // exhibition system" while the database is merely slow, not down.
+        sql.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: [-2, 1205]);
         sql.CommandTimeout(120);
     }));
 

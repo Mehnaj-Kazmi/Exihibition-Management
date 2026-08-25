@@ -1,6 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true"></application>
+    <!--
+      usesCleartextTraffic: Android 9 and later refuse plain-HTTP requests
+      unless a app opts in, and the exhibition system is normally reached over
+      the venue's own network at an http:// address the organiser types into
+      the app. Without this the app cannot talk to the server at all — it
+      reports "cannot reach the exhibition system" on every screen.
+
+      The trade-off is deliberate: traffic on the venue LAN is unencrypted.
+      When the organiser puts the system behind https, this can be tightened
+      to a network-security-config that permits cleartext only for the
+      specific hosts still needing it.
+    -->
+    <application android:allowBackup="true" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true" android:usesCleartextTraffic="true"></application>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
