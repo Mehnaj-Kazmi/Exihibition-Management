@@ -139,8 +139,18 @@ public class ExhibitionDbContext(DbContextOptions<ExhibitionDbContext> options) 
         {
             e.HasIndex(x => new { x.VisitorId, x.EventDate });
             e.HasIndex(x => new { x.KioskId, x.EventDate });
-            e.HasIndex(x => new { x.EventDate, x.Level });
             e.HasIndex(x => new { x.CategoryId, x.EventDate });
+
+            // The dashboard's "busiest stands" and "top categories" panels group
+            // a day's visits and count distinct visitors within each group. The
+            // (EventDate, Level) index finds the right rows, but every one of
+            // them then needs a lookup for the columns being grouped and summed,
+            // and a show day's visits run to tens of thousands — enough to take
+            // the dashboard from milliseconds to the better part of a minute.
+            // Carrying those columns in the index keeps the whole panel in one
+            // pass.
+            e.HasIndex(x => new { x.EventDate, x.Level })
+             .IncludeProperties(x => new { x.KioskId, x.VisitorId, x.CategoryId, x.DwellSeconds });
             // The dwell engine reopens in-flight sessions after a restart; this
             // keeps that lookup off a full scan of the day's visits.
             e.HasIndex(x => x.IsOpen).HasFilter("[IsOpen] = 1");
